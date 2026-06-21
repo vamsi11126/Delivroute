@@ -5,7 +5,11 @@ import { ZodError } from 'zod';
 import { logger } from './utils/logger';
 import { ApiError } from './utils/errors';
 import { authRouter } from './routes/auth.routes';
+import { sessionRouter } from './routes/session.routes';
+import { packageRouter } from './routes/package.routes';
 import { storeRouter } from './routes/store.routes';
+import { adminRouter } from './routes/admin.routes';
+import { billingRouter } from './routes/billing.routes';
 
 /**
  * Builds and configures the Express application.
@@ -27,17 +31,16 @@ export function createApp(): Application {
 
   // ── Health check ───────────────────────────────────────────────────────────
   app.get('/health', (_req: Request, res: Response) => {
-    res.json({ success: true, data: { status: 'ok' }, meta: {} });
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
   // ── API routes ─────────────────────────────────────────────────────────────
   app.use('/v1/auth', authRouter);
+  app.use('/v1/sessions', sessionRouter);
+  app.use('/v1/packages', packageRouter);
   app.use('/v1/store', storeRouter);
-  // Mounted in later prompts:
-  // app.use('/v1/sessions', sessionRoutes);
-  // app.use('/v1/packages', packageRoutes);
-  // app.use('/v1/admin', adminRoutes);
-  // app.use('/v1/billing', billingRoutes);
+  app.use('/v1/admin', adminRouter);
+  app.use('/v1/billing', billingRouter);
 
   // ── 404 handler ────────────────────────────────────────────────────────────
   app.use((_req: Request, res: Response) => {
