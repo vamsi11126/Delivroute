@@ -5,6 +5,7 @@ import { ZodError } from 'zod';
 import { logger } from './utils/logger';
 import { ApiError } from './utils/errors';
 import { authRouter } from './routes/auth.routes';
+import { storeRouter } from './routes/store.routes';
 
 /**
  * Builds and configures the Express application.
@@ -31,10 +32,10 @@ export function createApp(): Application {
 
   // ── API routes ─────────────────────────────────────────────────────────────
   app.use('/v1/auth', authRouter);
+  app.use('/v1/store', storeRouter);
   // Mounted in later prompts:
   // app.use('/v1/sessions', sessionRoutes);
   // app.use('/v1/packages', packageRoutes);
-  // app.use('/v1/store', storeRoutes);
   // app.use('/v1/admin', adminRoutes);
   // app.use('/v1/billing', billingRoutes);
 
