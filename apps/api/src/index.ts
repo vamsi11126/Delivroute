@@ -1,8 +1,10 @@
 import 'dotenv/config';
+import { createServer } from 'http';
 import { createApp } from './app';
 import { logger } from './utils/logger';
 import { connectPrisma, disconnectPrisma } from './utils/prisma';
 import { connectRedis, disconnectRedis } from './utils/redis';
+import { initLocationSocket } from './socket/location.socket';
 
 const PORT = Number(process.env.PORT) || 4000;
 
@@ -13,13 +15,20 @@ async function bootstrap(): Promise<void> {
     await connectRedis();
 
     const app = createApp();
-    const server = app.listen(PORT, () => {
+    const server = createServer(app);
+
+    // Attach Socket.io to the same HTTP server (real-time location tracking).
+    const io = initLocationSocket(server);
+
+    server.listen(PORT, () => {
       logger.info(`Server running on port ${PORT}`);
+      logger.info('Socket.io ready');
     });
 
     // ── Graceful shutdown ──────────────────────────────────────────────────────
     const shutdown = async (signal: string): Promise<void> => {
       logger.info(`${signal} received — shutting down gracefully`);
+      await io.close();
       server.close(async () => {
         await disconnectPrisma();
         await disconnectRedis();
