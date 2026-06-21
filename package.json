@@ -1,0 +1,21 @@
+{
+  "name": "delivroute",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DelivRoute — B2B SaaS last-mile delivery route optimization platform",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev --workspace=@delivroute/api",
+    "dev:web": "npm run dev --workspace=@delivroute/web",
+    "dev:mobile": "npm run start --workspace=@delivroute/mobile",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

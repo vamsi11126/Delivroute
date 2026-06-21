@@ -1,0 +1,171 @@
+// DelivRoute — Prisma schema
+//
+// Database: Supabase (managed PostgreSQL only — no Supabase Auth/Realtime/Storage).
+//
+// Connection strings (both from Supabase dashboard → Settings → Database):
+//   DATABASE_URL = pooled connection via pgbouncer (port 6543) — used for runtime queries
+//   DIRECT_URL   = direct connection (port 5432) — used for migrations only
+//
+// Conventions:
+//   - All primary keys are UUIDs.
+//   - Timestamps are DateTime (stored with timezone in Postgres).
+//   - Soft deletes via `deletedAt` on user-facing entities (Store, User).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Store {
+  id           String      @id @default(uuid())
+  name         String
+  ownerId      String      @unique
+  plan         Plan        @default(starter)
+  status       StoreStatus @default(trial)
+  createdAt    DateTime    @default(now())
+  deletedAt    DateTime?
+  owner        User        @relation("StoreOwner", fields: [ownerId], references: [id])
+  users        User[]      @relation("StoreUsers")
+  sessions     DeliverySession[]
+  subscription Subscription?
+
+  @@index([ownerId])
+}
+
+model User {
+  id           String    @id @default(uuid())
+  storeId      String?
+  role         Role
+  name         String
+  phone        String?   @unique
+  email        String?   @unique
+  passwordHash String
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  deletedAt    DateTime?
+  store        Store?    @relation("StoreUsers", fields: [storeId], references: [id])
+  ownedStore   Store?    @relation("StoreOwner")
+  sessions     DeliverySession[]
+  locations    Location[]
+
+  @@index([storeId])
+  @@index([phone])
+  @@index([email])
+}
+
+model DeliverySession {
+  id        String        @id @default(uuid())
+  storeId   String
+  boyId     String
+  date      DateTime
+  status    SessionStatus @default(pending)
+  startedAt DateTime?
+  endedAt   DateTime?
+  createdAt DateTime      @default(now())
+  store     Store         @relation(fields: [storeId], references: [id])
+  boy       User          @relation(fields: [boyId], references: [id])
+  packages  Package[]
+
+  @@index([storeId])
+  @@index([boyId])
+  @@index([date])
+}
+
+model Package {
+  id           String          @id @default(uuid())
+  sessionId    String
+  packageRef   String
+  customerName String
+  addressRaw   String
+  lat          Decimal         @db.Decimal(10, 7)
+  lng          Decimal         @db.Decimal(10, 7)
+  status       PackageStatus   @default(pending)
+  orderIndex   Int
+  failReason   String?
+  deliveredAt  DateTime?
+  createdAt    DateTime        @default(now())
+  session      DeliverySession @relation(fields: [sessionId], references: [id])
+  logs         DeliveryLog[]
+
+  @@index([sessionId])
+  @@index([status])
+}
+
+model DeliveryLog {
+  id         String         @id @default(uuid())
+  packageId  String
+  fromStatus PackageStatus?
+  toStatus   PackageStatus
+  reason     String?
+  createdAt  DateTime       @default(now())
+  package    Package        @relation(fields: [packageId], references: [id])
+
+  @@index([packageId])
+}
+
+model Location {
+  id         String   @id @default(uuid())
+  boyId      String
+  lat        Decimal  @db.Decimal(10, 7)
+  lng        Decimal  @db.Decimal(10, 7)
+  recordedAt DateTime
+  createdAt  DateTime @default(now())
+  boy        User     @relation(fields: [boyId], references: [id])
+
+  @@index([boyId])
+  @@index([createdAt])
+}
+
+model Subscription {
+  id               String    @id @default(uuid())
+  storeId          String    @unique
+  plan             Plan
+  gateway          String
+  gatewaySubId     String    @unique
+  status           SubStatus @default(active)
+  currentPeriodEnd DateTime
+  createdAt        DateTime  @default(now())
+  store            Store     @relation(fields: [storeId], references: [id])
+}
+
+enum Role {
+  super_admin
+  store_owner
+  delivery_boy
+}
+
+enum Plan {
+  starter
+  growth
+  enterprise
+}
+
+enum StoreStatus {
+  trial
+  active
+  suspended
+}
+
+enum SessionStatus {
+  pending
+  active
+  completed
+}
+
+enum PackageStatus {
+  pending
+  delivered
+  failed
+  skipped
+}
+
+enum SubStatus {
+  active
+  past_due
+  cancelled
+}
