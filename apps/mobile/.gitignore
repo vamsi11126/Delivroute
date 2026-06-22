@@ -1,0 +1,27 @@
+# React Native / Metro
+node_modules/
+.expo/
+dist/
+*.log
+
+# Native build outputs (the android/ and ios/ project folders themselves ARE
+# committed in the bare workflow — only their build artifacts are ignored).
+android/build/
+android/app/build/
+android/.gradle/
+android/.cxx/
+ios/build/
+ios/Pods/
+*.keystore
+!debug.keystore
+
+# Metro / Babel caches
+.metro-health-check*
+.haste_cache/
+
+# Env (do not commit secrets)
+.env
+.env.local
+
+# OS
+.DS_Store

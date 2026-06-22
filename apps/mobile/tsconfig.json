@@ -1,0 +1,10 @@
+{
+  "extends": "@react-native/typescript-config/tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "jsx": "react-jsx",
+    "baseUrl": "./src"
+  },
+  "include": ["src", "App.tsx", "*.d.ts", "src/**/*.d.ts"],
+  "exclude": ["node_modules", "babel.config.js", "metro.config.js"]
+}
