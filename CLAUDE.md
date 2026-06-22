@@ -457,7 +457,7 @@ Admin Login, Admin Dashboard, Stores List, Store Detail, Subscriptions, Revenue,
 - [ ] Prompt 7  — Store owner APIs
 - [ ] Prompt 8  — Super admin APIs + wire all routes
 - [ ] Prompt 9  — Socket.io real-time location
-- [ ] Prompt 10 — Mobile app setup + navigation
+- [x] Prompt 10 — Mobile app setup + navigation
 - [ ] Prompt 11 — Mobile auth screens
 - [ ] Prompt 12 — Core delivery screens
 - [ ] Prompt 13 — GPS tracking + Socket.io mobile
