@@ -7,11 +7,12 @@ import type { HomeStackParamList } from '../../navigation/AppTabs';
 type Props = StackScreenProps<HomeStackParamList, 'PackageEntry'>;
 
 export function PackageEntryScreen({ navigation, route }: Props): React.JSX.Element {
+  const { sessionId } = route.params;
   return (
-    <ScreenPlaceholder title="Add packages" subtitle="Enter package refs and addresses.">
+    <ScreenPlaceholder title="PackageEntry" subtitle="Add the packages for today's run.">
       <Button
         title="Preview route"
-        onPress={() => navigation.navigate('RoutePreview', { sessionId: route.params.sessionId })}
+        onPress={() => navigation.navigate('RoutePreview', { sessionId })}
       />
     </ScreenPlaceholder>
   );

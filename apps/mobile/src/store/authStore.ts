@@ -5,31 +5,50 @@ import {
   getRefreshToken,
   setStoredTokens,
   clearStoredTokens,
-} from '../storage/storage';
+} from '../storage/secureStorage';
 
 interface AuthState {
   user: User | null;
   accessToken: string | null;
   refreshToken: string | null;
   isAuthenticated: boolean;
-  /** Persist tokens to MMKV and mark the user authenticated. */
-  login: (user: User, tokens: AuthTokens) => void;
-  /** Clear tokens from MMKV and reset auth state. */
-  logout: () => void;
+  /** False until tokens have been read back from SecureStore on startup. */
+  isHydrated: boolean;
+  /** Load persisted tokens from SecureStore (called once on app launch). */
+  hydrate: () => Promise<void>;
+  /** Persist tokens to SecureStore and mark the user authenticated. */
+  login: (user: User, tokens: AuthTokens) => Promise<void>;
+  /** Clear tokens from SecureStore and reset auth state. */
+  logout: () => Promise<void>;
 }
 
 /**
- * Auth state, hydrated from MMKV on startup so RootNavigator can decide between
- * the auth flow and the app tabs without an extra loading round-trip.
+ * Auth state. SecureStore is async, so unlike the old MMKV-backed store we can't
+ * hydrate synchronously at module load — RootNavigator calls `hydrate()` on
+ * mount and shows a splash until `isHydrated` flips true.
  */
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
-  accessToken: getAccessToken() ?? null,
-  refreshToken: getRefreshToken() ?? null,
-  isAuthenticated: Boolean(getAccessToken()),
+  accessToken: null,
+  refreshToken: null,
+  isAuthenticated: false,
+  isHydrated: false,
 
-  login: (user, tokens) => {
-    setStoredTokens(tokens);
+  hydrate: async () => {
+    const [accessToken, refreshToken] = await Promise.all([
+      getAccessToken(),
+      getRefreshToken(),
+    ]);
+    set({
+      accessToken,
+      refreshToken,
+      isAuthenticated: Boolean(accessToken),
+      isHydrated: true,
+    });
+  },
+
+  login: async (user, tokens) => {
+    await setStoredTokens(tokens);
     set({
       user,
       accessToken: tokens.accessToken,
@@ -38,8 +57,13 @@ export const useAuthStore = create<AuthState>((set) => ({
     });
   },
 
-  logout: () => {
-    clearStoredTokens();
-    set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false });
+  logout: async () => {
+    await clearStoredTokens();
+    set({
+      user: null,
+      accessToken: null,
+      refreshToken: null,
+      isAuthenticated: false,
+    });
   },
 }));

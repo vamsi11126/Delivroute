@@ -9,8 +9,9 @@ interface ScreenPlaceholderProps {
 }
 
 /**
- * Shared scaffold for the placeholder screens built in this prompt. Real UI is
- * filled in by later prompts (mobile auth + delivery screens).
+ * Shared scaffold for the placeholder screens built in this prompt: the screen
+ * name is rendered centered on screen. Real UI is filled in by later prompts
+ * (mobile auth + delivery screens).
  */
 export function ScreenPlaceholder({
   title,

@@ -8,8 +8,8 @@ type Props = StackScreenProps<ActiveStackParamList, 'SessionSummary'>;
 export function SessionSummaryScreen(_props: Props): React.JSX.Element {
   return (
     <ScreenPlaceholder
-      title="Session summary"
-      subtitle="Delivered, failed, and skipped at a glance."
+      title="SessionSummary"
+      subtitle="Delivered vs failed for the session."
     />
   );
 }

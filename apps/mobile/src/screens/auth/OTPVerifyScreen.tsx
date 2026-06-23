@@ -7,11 +7,12 @@ import type { AuthStackParamList } from '../../navigation/AuthStack';
 type Props = StackScreenProps<AuthStackParamList, 'OTPVerify'>;
 
 export function OTPVerifyScreen({ navigation, route }: Props): React.JSX.Element {
+  const { phone } = route.params;
   return (
-    <ScreenPlaceholder title="Verify OTP" subtitle={`Code sent to ${route.params.phone}`}>
+    <ScreenPlaceholder title="OTPVerify" subtitle={`Enter the code sent to ${phone}.`}>
       <Button
         title="Verify"
-        onPress={() => navigation.navigate('SetProfile', { phone: route.params.phone })}
+        onPress={() => navigation.navigate('SetProfile', { phone })}
       />
     </ScreenPlaceholder>
   );

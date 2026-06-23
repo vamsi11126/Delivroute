@@ -10,7 +10,7 @@ import {
   getRefreshToken,
   setStoredTokens,
   clearStoredTokens,
-} from '../storage/storage';
+} from '../storage/secureStorage';
 import { useAuthStore } from '../store/authStore';
 import type { AuthTokens } from '../types/models';
 
@@ -32,9 +32,10 @@ export const apiClient = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// ── Request interceptor: attach the bearer token ─────────────────────────────
-apiClient.interceptors.request.use((config) => {
-  const token = getAccessToken();
+// ── Request interceptor: attach the bearer token from SecureStore ────────────
+// SecureStore reads are async, so this interceptor is async too (axios awaits it).
+apiClient.interceptors.request.use(async (config) => {
+  const token = await getAccessToken();
   if (token) {
     config.headers = AxiosHeaders.from(config.headers);
     config.headers.set('Authorization', `Bearer ${token}`);
@@ -48,7 +49,7 @@ apiClient.interceptors.request.use((config) => {
 let refreshPromise: Promise<string> | null = null;
 
 async function refreshAccessToken(): Promise<string> {
-  const refreshToken = getRefreshToken();
+  const refreshToken = await getRefreshToken();
   if (!refreshToken) {
     throw new Error('No refresh token available');
   }
@@ -61,10 +62,11 @@ async function refreshAccessToken(): Promise<string> {
   );
 
   const tokens = data.data;
-  setStoredTokens(tokens);
+  await setStoredTokens(tokens);
   useAuthStore.setState({
     accessToken: tokens.accessToken,
     refreshToken: tokens.refreshToken,
+    isAuthenticated: true,
   });
   return tokens.accessToken;
 }
@@ -90,8 +92,8 @@ apiClient.interceptors.response.use(
       return apiClient(original as AxiosRequestConfig);
     } catch (refreshError) {
       refreshPromise = null;
-      clearStoredTokens();
-      useAuthStore.getState().logout();
+      await clearStoredTokens();
+      await useAuthStore.getState().logout();
       return Promise.reject(refreshError);
     }
   },

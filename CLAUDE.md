@@ -61,16 +61,21 @@ delivroute/
 ### Mobile App — `apps/mobile`
 | Concern | Library |
 |---|---|
-| Framework | React Native 0.74+ (bare workflow, no Expo) |
-| Language | TypeScript 5 strict mode |
-| Navigation | React Navigation v6 (Stack + Bottom Tab) |
-| State | Zustand |
-| Local storage | MMKV |
+| Framework | Expo SDK 56 (managed workflow) — React Native 0.85, React 19 |
+| Language | TypeScript strict mode |
+| Navigation | React Navigation v7 (Stack + Bottom Tab) |
+| State | Zustand v5 |
+| Secure storage | expo-secure-store (token persistence; **async** — app hydrates auth on startup) |
+| Local storage | @react-native-async-storage/async-storage (non-secret cache) |
 | HTTP | Axios with JWT interceptor (auto-refresh on 401) |
 | Maps | react-native-maps |
+| Location / GPS | expo-location (permissions + position) |
 | WebSocket | socket.io-client |
 | Forms | React Hook Form |
-| Push notifications | @react-native-firebase/messaging (FCM) |
+| Push notifications | expo-notifications |
+| Config / env | app.config.ts `extra` fields, read at runtime via expo-constants |
+
+> **Managed workflow:** no `ios/`/`android/` folders are committed — they are generated on demand via `expo prebuild` / EAS Build. Native config (permissions, bundle id, Maps keys) lives in `app.config.ts` and config plugins, not in native files. Run the app with `npx expo start` (or `npm run start`). Install native modules with `npx expo install <pkg>` so versions stay SDK-compatible.
 
 ### Web — `apps/web`
 | Concern | Library |
@@ -341,6 +346,10 @@ API_URL=                     # http://localhost:4000/v1 in dev
 MAP_PROVIDER=                # "google" or "osm"
 GOOGLE_MAPS_API_KEY=
 ```
+> Expo CLI auto-loads this `.env` when it evaluates `app.config.ts`. The values
+> are exposed to the running app through `app.config.ts` → `extra` and read at
+> runtime via `expo-constants` (`src/config/env.ts`). `.env` is git-ignored;
+> commit only `.env.example`. There is no `react-native-dotenv`/`@env` import.
 
 ---
 
@@ -480,3 +489,7 @@ Admin Login, Admin Dashboard, Stores List, Store Detail, Subscriptions, Revenue,
 - Soft deletes on Store and User via deletedAt — never hard delete these two models
 - docker-compose.yml only needs Redis — Postgres is fully managed by Supabase
 - When checking plan limits, count active delivery boys: `prisma.user.count({ where: { storeId, role: 'delivery_boy', isActive: true, deletedAt: null } })`
+- Mobile is **Expo managed** (SDK 56) — never commit `ios/`/`android/`; configure native behaviour in `app.config.ts` + config plugins, and run `expo prebuild` only when a true native build is needed
+- Install mobile native modules with `npx expo install <pkg>` (not plain `npm install`) so versions match the Expo SDK
+- Mobile token storage is `expo-secure-store` and is **async** — never assume synchronous token reads; auth state is hydrated on startup via `authStore.hydrate()` and gated by `isHydrated`
+- Mobile env vars flow `.env` → `app.config.ts` `extra` → `expo-constants` (`src/config/env.ts`); never read `process.env` directly in app code, and use `expo-location` for all GPS/permissions

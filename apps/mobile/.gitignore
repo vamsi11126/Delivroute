@@ -1,27 +1,42 @@
-# React Native / Metro
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
 node_modules/
+
+# Expo
 .expo/
 dist/
-*.log
+web-build/
+expo-env.d.ts
 
-# Native build outputs (the android/ and ios/ project folders themselves ARE
-# committed in the bare workflow — only their build artifacts are ignored).
-android/build/
-android/app/build/
-android/.gradle/
-android/.cxx/
-ios/build/
-ios/Pods/
-*.keystore
-!debug.keystore
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
 
-# Metro / Babel caches
+# Metro
 .metro-health-check*
-.haste_cache/
 
-# Env (do not commit secrets)
-.env
-.env.local
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
 
-# OS
+# macOS
 .DS_Store
+*.pem
+
+# local env files
+.env
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+# generated native folders
+/ios
+/android

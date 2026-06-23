@@ -8,7 +8,7 @@ type Props = StackScreenProps<ActiveStackParamList, 'ActiveDelivery'>;
 
 export function ActiveDeliveryScreen({ navigation }: Props): React.JSX.Element {
   return (
-    <ScreenPlaceholder title="Active delivery" subtitle="Your current stop and live map.">
+    <ScreenPlaceholder title="ActiveDelivery" subtitle="Your live delivery run.">
       <Button title="Full route list" onPress={() => navigation.navigate('FullRouteList')} />
       <Button title="End session" onPress={() => navigation.navigate('SessionSummary')} />
     </ScreenPlaceholder>

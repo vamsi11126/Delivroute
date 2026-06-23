@@ -7,6 +7,6 @@ type Props = StackScreenProps<ActiveStackParamList, 'FullRouteList'>;
 
 export function FullRouteListScreen(_props: Props): React.JSX.Element {
   return (
-    <ScreenPlaceholder title="Full route" subtitle="All stops in optimised delivery order." />
+    <ScreenPlaceholder title="FullRouteList" subtitle="Every stop in delivery order." />
   );
 }

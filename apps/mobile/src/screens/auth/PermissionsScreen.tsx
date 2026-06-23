@@ -1,16 +1,18 @@
 import React from 'react';
 import { Button } from 'react-native';
+import * as Location from 'expo-location';
 import { ScreenPlaceholder } from '../../components/ScreenPlaceholder';
 import { useAuthStore } from '../../store/authStore';
 
 export function PermissionsScreen(): React.JSX.Element {
   const login = useAuthStore((state) => state.login);
 
-  // Placeholder: real onboarding will request location/notification permissions
-  // and complete auth via the API. Here we seed a stub session so the flow
-  // reaches the app tabs.
-  const finishOnboarding = () => {
-    login(
+  // Placeholder onboarding: request foreground location via expo-location, then
+  // seed a stub session so the flow reaches the app tabs. Real onboarding (and
+  // notification permission) is wired up in later prompts.
+  const finishOnboarding = async () => {
+    await Location.requestForegroundPermissionsAsync();
+    await login(
       {
         id: 'stub-user',
         storeId: 'stub-store',
@@ -24,7 +26,7 @@ export function PermissionsScreen(): React.JSX.Element {
 
   return (
     <ScreenPlaceholder
-      title="Enable permissions"
+      title="Permissions"
       subtitle="Location and notifications keep your route live."
     >
       <Button title="Allow & continue" onPress={finishOnboarding} />
