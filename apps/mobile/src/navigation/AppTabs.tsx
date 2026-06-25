@@ -1,6 +1,8 @@
 import React from 'react';
+import { View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
+import { LocationWarningBanner } from '../components/LocationWarningBanner';
 import { HomeScreen } from '../screens/main/HomeScreen';
 import { PackageEntryScreen } from '../screens/main/PackageEntryScreen';
 import { RoutePreviewScreen } from '../screens/main/RoutePreviewScreen';
@@ -57,11 +59,15 @@ const Tabs = createBottomTabNavigator<AppTabsParamList>();
 
 export function AppTabs(): React.JSX.Element {
   return (
-    <Tabs.Navigator screenOptions={{ headerShown: false }}>
-      <Tabs.Screen name="HomeTab" component={HomeStack} options={{ title: 'Home' }} />
-      <Tabs.Screen name="ActiveTab" component={ActiveStack} options={{ title: 'Active' }} />
-      <Tabs.Screen name="History" component={DeliveryHistoryScreen} options={{ title: 'History' }} />
-      <Tabs.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profile' }} />
-    </Tabs.Navigator>
+    <View style={{ flex: 1 }}>
+      {/* Persists across all tabs when location was denied/skipped. */}
+      <LocationWarningBanner />
+      <Tabs.Navigator screenOptions={{ headerShown: false }}>
+        <Tabs.Screen name="HomeTab" component={HomeStack} options={{ title: 'Home' }} />
+        <Tabs.Screen name="ActiveTab" component={ActiveStack} options={{ title: 'Active' }} />
+        <Tabs.Screen name="History" component={DeliveryHistoryScreen} options={{ title: 'History' }} />
+        <Tabs.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profile' }} />
+      </Tabs.Navigator>
+    </View>
   );
 }

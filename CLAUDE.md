@@ -61,7 +61,7 @@ delivroute/
 ### Mobile App — `apps/mobile`
 | Concern | Library |
 |---|---|
-| Framework | Expo SDK 56 (managed workflow) — React Native 0.85, React 19 |
+| Framework | Expo SDK 54 (managed workflow) — React Native 0.81, React 19.1 |
 | Language | TypeScript strict mode |
 | Navigation | React Navigation v7 (Stack + Bottom Tab) |
 | State | Zustand v5 |
@@ -467,7 +467,7 @@ Admin Login, Admin Dashboard, Stores List, Store Detail, Subscriptions, Revenue,
 - [ ] Prompt 8  — Super admin APIs + wire all routes
 - [ ] Prompt 9  — Socket.io real-time location
 - [x] Prompt 10 — Mobile app setup + navigation
-- [ ] Prompt 11 — Mobile auth screens
+- [x] Prompt 11 — Mobile auth screens
 - [ ] Prompt 12 — Core delivery screens
 - [ ] Prompt 13 — GPS tracking + Socket.io mobile
 - [ ] Prompt 14 — Web app setup + NextAuth
@@ -489,7 +489,7 @@ Admin Login, Admin Dashboard, Stores List, Store Detail, Subscriptions, Revenue,
 - Soft deletes on Store and User via deletedAt — never hard delete these two models
 - docker-compose.yml only needs Redis — Postgres is fully managed by Supabase
 - When checking plan limits, count active delivery boys: `prisma.user.count({ where: { storeId, role: 'delivery_boy', isActive: true, deletedAt: null } })`
-- Mobile is **Expo managed** (SDK 56) — never commit `ios/`/`android/`; configure native behaviour in `app.config.ts` + config plugins, and run `expo prebuild` only when a true native build is needed
+- Mobile is **Expo managed** (SDK 54) — never commit `ios/`/`android/`; configure native behaviour in `app.config.ts` + config plugins, and run `expo prebuild` only when a true native build is needed
 - Install mobile native modules with `npx expo install <pkg>` (not plain `npm install`) so versions match the Expo SDK
 - Mobile token storage is `expo-secure-store` and is **async** — never assume synchronous token reads; auth state is hydrated on startup via `authStore.hydrate()` and gated by `isHydrated`
 - Mobile env vars flow `.env` → `app.config.ts` `extra` → `expo-constants` (`src/config/env.ts`); never read `process.env` directly in app code, and use `expo-location` for all GPS/permissions

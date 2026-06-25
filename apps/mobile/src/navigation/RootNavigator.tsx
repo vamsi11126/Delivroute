@@ -12,6 +12,7 @@ import { AppTabs } from './AppTabs';
 export function RootNavigator(): React.JSX.Element {
   const isHydrated = useAuthStore((state) => state.isHydrated);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const onboardingComplete = useAuthStore((state) => state.onboardingComplete);
   const hydrate = useAuthStore((state) => state.hydrate);
 
   useEffect(() => {
@@ -21,12 +22,15 @@ export function RootNavigator(): React.JSX.Element {
   if (!isHydrated) {
     return (
       <View style={styles.splash}>
-        <ActivityIndicator size="large" color="#111" />
+        <ActivityIndicator size="large" color="#1A56DB" />
       </View>
     );
   }
 
-  return isAuthenticated ? <AppTabs /> : <AuthStack />;
+  // A first-time user is authenticated the moment OTP verification saves their
+  // tokens, but still has SetProfile + Permissions to go — keep them in the
+  // onboarding stack until `completeOnboarding()` flips this flag.
+  return isAuthenticated && onboardingComplete ? <AppTabs /> : <AuthStack />;
 }
 
 const styles = StyleSheet.create({

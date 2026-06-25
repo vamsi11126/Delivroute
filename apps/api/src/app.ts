@@ -19,6 +19,10 @@ import { billingRouter } from './routes/billing.routes';
 export function createApp(): Application {
   const app = express();
 
+  // Trust the first proxy hop (ngrok/Render/Railway) so express-rate-limit can
+  // read the real client IP from X-Forwarded-For instead of throwing.
+  app.set('trust proxy', 1);
+
   // ── Global middleware ──────────────────────────────────────────────────────
   app.use(cors());
   app.use(express.json());

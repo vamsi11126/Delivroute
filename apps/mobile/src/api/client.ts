@@ -29,7 +29,12 @@ interface RetryableConfig extends InternalAxiosRequestConfig {
 export const apiClient = axios.create({
   baseURL: env.API_URL,
   timeout: 15000,
-  headers: { 'Content-Type': 'application/json' },
+  headers: {
+    'Content-Type': 'application/json',
+    // Bypass ngrok's HTML interstitial so the API always returns raw JSON
+    // (the warning page would otherwise break response parsing in dev).
+    'ngrok-skip-browser-warning': 'true',
+  },
 });
 
 // ── Request interceptor: attach the bearer token from SecureStore ────────────

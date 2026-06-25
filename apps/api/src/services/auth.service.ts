@@ -144,18 +144,46 @@ export async function logout(token: string): Promise<void> {
 }
 
 /**
- * Generate a 6-digit OTP for a delivery boy invite and store it in Redis as
+ * Generate a 6-digit OTP for a delivery boy and store it in Redis as
  * `otp:{phone}` → { otp, storeId } with a 10-minute TTL. The OTP is logged
  * (SMS delivery is wired up later). Returns the OTP for dev convenience.
+ *
+ * `storeId` is optional because send-otp is currently a public, delivery-boy
+ * self-onboarding endpoint with no authenticated store owner to scope to.
+ * DEV-ONLY: when no storeId is supplied we fall back to the first store in the
+ * DB so the OTP payload (and the account verifyOtp later creates) is still
+ * store-scoped. Replace this with a real store-selection mechanism (invite
+ * code / owner-initiated invite) before supporting multiple stores.
  */
-export async function generateOtp(phone: string, storeId: string): Promise<string> {
-  const existing = await prisma.user.findUnique({ where: { phone }, select: { id: true } });
-  if (existing) {
-    throw new ApiError(409, 'CONFLICT', 'A user with this phone already exists');
+export async function generateOtp(phone: string, storeId?: string): Promise<string> {
+  // Both new and existing users may request an OTP — new boys for first-time
+  // onboarding, existing boys for re-authentication. verifyOtp distinguishes
+  // the two cases via isNewUser.
+  const existing = await prisma.user.findFirst({
+    where: { phone, deletedAt: null },
+    select: { id: true, storeId: true },
+  });
+
+  let resolvedStoreId = storeId ?? existing?.storeId ?? undefined;
+  if (!resolvedStoreId) {
+    const firstStore = await prisma.store.findFirst({
+      where: { deletedAt: null },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+    if (!firstStore) {
+      throw new ApiError(404, 'NOT_FOUND', 'No store available to onboard this delivery boy');
+    }
+    resolvedStoreId = firstStore.id;
   }
 
   const otp = String(Math.floor(100000 + Math.random() * 900000));
-  await redis.set(`otp:${phone}`, JSON.stringify({ otp, storeId }), 'EX', OTP_TTL_SECONDS);
+  await redis.set(
+    `otp:${phone}`,
+    JSON.stringify({ otp, storeId: resolvedStoreId }),
+    'EX',
+    OTP_TTL_SECONDS,
+  );
 
   // TODO: send via SMS provider. For now, log it.
   logger.info(`OTP for ${phone}: ${otp}`);
@@ -163,10 +191,17 @@ export async function generateOtp(phone: string, storeId: string): Promise<strin
 }
 
 /**
- * Verify an OTP and onboard the delivery boy under the store that invited
- * them. The storeId is taken from the Redis payload — never from the client.
+ * Verify an OTP — step one of the two-step onboarding. On the first valid
+ * verify we create the delivery boy's account under the store that invited
+ * them (storeId comes from the Redis payload, never the client) with a random
+ * throwaway password; the real name + password are set afterwards via
+ * `updateProfile` (PATCH /auth/profile).
+ *
+ * `isNewUser` is true when the account was just created, false when the phone
+ * already had an account (a returning boy re-verifying). Returns the mobile
+ * client contract: { accessToken, refreshToken, user, isNewUser }.
  */
-export async function verifyOtp(phone: string, otp: string, name: string, password: string) {
+export async function verifyOtp(phone: string, otp: string) {
   const raw = await redis.get(`otp:${phone}`);
   if (!raw) {
     throw new ApiError(401, 'UNAUTHORIZED', 'OTP expired or not found');
@@ -177,25 +212,53 @@ export async function verifyOtp(phone: string, otp: string, name: string, passwo
     throw new ApiError(401, 'UNAUTHORIZED', 'Invalid OTP');
   }
 
-  const existing = await prisma.user.findUnique({ where: { phone }, select: { id: true } });
-  if (existing) {
-    throw new ApiError(409, 'CONFLICT', 'A user with this phone already exists');
-  }
+  // The OTP is single-use — burn it now that it has matched.
+  await redis.del(`otp:${phone}`);
 
-  const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
-  const user = await prisma.user.create({
-    data: {
-      role: Role.delivery_boy,
-      name,
-      phone,
-      passwordHash,
-      storeId,
-    },
+  const existing = await prisma.user.findFirst({
+    where: { phone, deletedAt: null },
     select: userSafeSelect,
   });
 
-  await redis.del(`otp:${phone}`);
+  let user = existing;
+  let isNewUser = false;
+
+  if (!user) {
+    // First verify — create the account with a throwaway password. The boy sets
+    // a real one immediately after via PATCH /auth/profile.
+    const tempPasswordHash = await bcrypt.hash(uuidv4(), BCRYPT_ROUNDS);
+    user = await prisma.user.create({
+      data: {
+        role: Role.delivery_boy,
+        name: '',
+        phone,
+        passwordHash: tempPasswordHash,
+        storeId,
+      },
+      select: userSafeSelect,
+    });
+    isNewUser = true;
+  }
 
   const tokens = await issueTokens(user);
-  return { user, ...tokens };
+  return {
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
+    user,
+    isNewUser,
+  };
+}
+
+/**
+ * Step two of onboarding — set the authenticated user's real name + password.
+ * The userId comes from the verified JWT (req.user.id), never the request body.
+ */
+export async function updateProfile(userId: string, name: string, password: string) {
+  const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: { name, passwordHash },
+    select: userSafeSelect,
+  });
+  return user;
 }

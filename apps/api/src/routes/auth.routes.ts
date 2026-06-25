@@ -1,9 +1,8 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { Role } from '@prisma/client';
 import * as authController from '../controllers/auth.controller';
 import { validate } from '../middleware/validate.middleware';
-import { verifyToken, requireRole } from '../middleware/auth.middleware';
+import { verifyToken } from '../middleware/auth.middleware';
 import {
   registerStoreSchema,
   loginSchema,
@@ -11,6 +10,7 @@ import {
   logoutSchema,
   sendOtpSchema,
   verifyOtpSchema,
+  updateProfileSchema,
 } from '../schemas/auth.schema';
 
 // 10 requests / minute / IP across all auth endpoints (security rule #6).
@@ -33,15 +33,12 @@ router.post('/register-store', validate(registerStoreSchema), authController.reg
 router.post('/login', validate(loginSchema), authController.login);
 router.post('/refresh', validate(refreshSchema), authController.refresh);
 router.post('/verify-otp', validate(verifyOtpSchema), authController.verifyOtp);
+// Public (dev): delivery-boy self-onboarding requests its own OTP. The store is
+// resolved server-side (default store for now) — never trust a storeId here.
+router.post('/send-otp', validate(sendOtpSchema), authController.sendOtp);
 
 // Protected
 router.post('/logout', verifyToken, validate(logoutSchema), authController.logout);
-router.post(
-  '/send-otp',
-  verifyToken,
-  requireRole(Role.store_owner),
-  validate(sendOtpSchema),
-  authController.sendOtp,
-);
+router.patch('/profile', verifyToken, validate(updateProfileSchema), authController.updateProfile);
 
 export const authRouter = router;
