@@ -1,5 +1,6 @@
 import React from 'react';
 import { View } from 'react-native';
+import type { NavigatorScreenParams } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { LocationWarningBanner } from '../components/LocationWarningBanner';
@@ -27,8 +28,8 @@ export type ActiveStackParamList = {
 };
 
 export type AppTabsParamList = {
-  HomeTab: undefined;
-  ActiveTab: undefined;
+  HomeTab: NavigatorScreenParams<HomeStackParamList> | undefined;
+  ActiveTab: NavigatorScreenParams<ActiveStackParamList> | undefined;
   History: undefined;
   Profile: undefined;
 };

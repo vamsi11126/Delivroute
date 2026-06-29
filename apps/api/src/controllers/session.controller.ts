@@ -25,6 +25,17 @@ export async function createSession(req: Request, res: Response, next: NextFunct
   }
 }
 
+export async function getTodaySession(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { boyId, storeId } = requireAuth(req);
+    const session = await sessionService.getTodaySession(boyId, storeId);
+    res.json({ success: true, data: session, meta: {} });
+  } catch (err) {
+    logger.error('getTodaySession failed', { error: (err as Error).message });
+    next(err);
+  }
+}
+
 export async function getSession(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { storeId } = requireAuth(req);
@@ -73,6 +84,18 @@ export async function startSession(req: Request, res: Response, next: NextFuncti
     res.json({ success: true, data: session, meta: {} });
   } catch (err) {
     logger.error('startSession failed', { error: (err as Error).message });
+    next(err);
+  }
+}
+
+export async function endSession(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { storeId } = requireAuth(req);
+    const session = await sessionService.endSession(String(req.params.id), storeId);
+    logger.info('Session ended', { sessionId: req.params.id });
+    res.json({ success: true, data: session, meta: {} });
+  } catch (err) {
+    logger.error('endSession failed', { error: (err as Error).message });
     next(err);
   }
 }

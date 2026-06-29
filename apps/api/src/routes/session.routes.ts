@@ -16,10 +16,12 @@ const router = Router();
 router.use(verifyToken, requireRole(Role.delivery_boy));
 
 router.post('/', validate(createSessionSchema), sessionController.createSession);
+router.get('/', sessionController.getTodaySession);
 router.get('/:id', sessionController.getSession);
 router.post('/:id/packages', validate(addPackagesSchema), sessionController.addPackages);
 router.post('/:id/optimize', validate(optimizeSchema), sessionController.optimizeSession);
 router.patch('/:id/start', sessionController.startSession);
+router.patch('/:id/end', sessionController.endSession);
 router.post('/:id/location', validate(pushLocationSchema), sessionController.pushLocation);
 
 export const sessionRouter = router;

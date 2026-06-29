@@ -47,6 +47,18 @@ export async function createSession(boyId: string, storeId: string) {
   });
 }
 
+/**
+ * Fetch today's session for a boy (with packages), or null if none exists yet.
+ * Powers the mobile Home screen's "do I have a session today?" check.
+ */
+export async function getTodaySession(boyId: string, storeId: string) {
+  const { start, end } = dayRange(new Date());
+  return prisma.deliverySession.findFirst({
+    where: { boyId, storeId, date: { gte: start, lt: end } },
+    include: { packages: { orderBy: { orderIndex: 'asc' } } },
+  });
+}
+
 /** Fetch a session with all of its packages ordered by the optimiser index. */
 export async function getSession(sessionId: string, storeId: string) {
   const session = await prisma.deliverySession.findFirst({
@@ -152,6 +164,61 @@ export async function startSession(sessionId: string, storeId: string) {
   });
 
   return updated;
+}
+
+/**
+ * End a session early/manually: any package still pending or failed is marked
+ * skipped (FAILED → SKIPPED per the documented status flow), the session is
+ * completed, and session:completed is emitted. Idempotent — a session that is
+ * already completed is returned unchanged.
+ */
+export async function endSession(sessionId: string, storeId: string) {
+  const session = await findScopedSession(sessionId, storeId);
+  if (session.status === SessionStatus.completed) {
+    return session;
+  }
+
+  const unresolved = await prisma.package.findMany({
+    where: {
+      sessionId,
+      status: { in: [PackageStatus.pending, PackageStatus.failed] },
+    },
+  });
+
+  await prisma.$transaction([
+    ...unresolved.flatMap((p) => [
+      prisma.package.update({
+        where: { id: p.id },
+        data: { status: PackageStatus.skipped },
+      }),
+      prisma.deliveryLog.create({
+        data: {
+          packageId: p.id,
+          fromStatus: p.status,
+          toStatus: PackageStatus.skipped,
+          reason: p.failReason ?? 'Session ended',
+        },
+      }),
+    ]),
+    prisma.deliverySession.update({
+      where: { id: session.id },
+      data: { status: SessionStatus.completed, endedAt: new Date() },
+    }),
+  ]);
+
+  const [delivered, skipped] = await Promise.all([
+    prisma.package.count({ where: { sessionId, status: PackageStatus.delivered } }),
+    prisma.package.count({ where: { sessionId, status: PackageStatus.skipped } }),
+  ]);
+
+  emitToStore(storeId, 'session:completed', {
+    sessionId,
+    boyId: session.boyId,
+    delivered,
+    failed: skipped,
+  });
+
+  return prisma.deliverySession.findUnique({ where: { id: session.id } });
 }
 
 /** Load a package scoped to the boy + store via its session relation. */
