@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -11,17 +11,20 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Swipeable } from 'react-native-gesture-handler';
 import type { StackScreenProps } from '@react-navigation/stack';
+import { useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import { TextField } from '../../components/TextField';
 import { PrimaryButton } from '../../components/PrimaryButton';
 import {
   addPackages,
   autocompleteAddress,
+  deletePackage,
   optimizeRoute,
   type PackageInput,
 } from '../../api/session';
 import { getApiErrorMessage } from '../../api/errors';
 import { useSessionStore } from '../../store/sessionStore';
+import { usePermissionStore } from '../../store/permissionStore';
 import { colors, radius, spacing } from '../../theme';
 import type { HomeStackParamList } from '../../navigation/AppTabs';
 
@@ -29,11 +32,30 @@ type Props = StackScreenProps<HomeStackParamList, 'PackageEntry'>;
 
 const AUTOCOMPLETE_DEBOUNCE_MS = 300;
 
+/**
+ * A row in the entry list. `id` is set once the row has been persisted to the
+ * DB — a previous partial-success add creates some packages server-side, so
+ * removing such a row must also delete it via the API, and it must not be
+ * re-sent on the next Optimize tap.
+ */
+type DraftPackage = PackageInput & { id?: string };
+
 export function PackageEntryScreen({ navigation, route }: Props): React.JSX.Element {
   const { sessionId } = route.params;
   const startSession = useSessionStore((s) => s.startSession);
+  const syncLocationPermission = usePermissionStore((s) => s.syncLocationPermission);
+  const ensureLocationPermission = usePermissionStore((s) => s.ensureLocationPermission);
 
-  const [packages, setPackages] = useState<PackageInput[]>([]);
+  // Keep the cached permission flag in step with OS Settings whenever this
+  // screen is focused, so a permission granted outside the app is reflected
+  // before the user taps Optimize Route (and the warning banner clears).
+  useFocusEffect(
+    useCallback(() => {
+      void syncLocationPermission();
+    }, [syncLocationPermission]),
+  );
+
+  const [packages, setPackages] = useState<DraftPackage[]>([]);
   const [customerName, setCustomerName] = useState('');
   const [address, setAddress] = useState('');
   const [packageRef, setPackageRef] = useState('');
@@ -93,7 +115,17 @@ export function PackageEntryScreen({ navigation, route }: Props): React.JSX.Elem
   };
 
   const handleRemove = (index: number) => {
+    const target = packages[index];
     setPackages((prev) => prev.filter((_, i) => i !== index));
+    // If this row was already saved to the DB by an earlier partial-success add,
+    // delete it there too so it doesn't linger in the session's queue.
+    if (target?.id) {
+      void deletePackage(target.id).catch((err) => {
+        // Restore the row so a failed delete doesn't silently orphan it server-side.
+        setPackages((prev) => [...prev, target]);
+        setError(getApiErrorMessage(err));
+      });
+    }
   };
 
   const handleOptimize = async () => {
@@ -105,11 +137,54 @@ export function PackageEntryScreen({ navigation, route }: Props): React.JSX.Elem
     setOptimizing(true);
     setError(null);
     try {
-      await addPackages(sessionId, packages);
+      // Only send rows that aren't already in the DB. A previous attempt may
+      // have persisted some (partial success) — those carry an `id`, and
+      // re-sending them would create duplicates.
+      const unsaved = packages.filter((p) => !p.id);
+      if (unsaved.length > 0) {
+        // The server geocodes each address and skips any it can't locate, adding
+        // the rest. Tag the rows that landed with their DB id so they aren't
+        // re-sent and a later removal deletes them server-side too.
+        const { created, failed } = await addPackages(
+          sessionId,
+          unsaved.map((p) => ({
+            packageRef: p.packageRef,
+            customerName: p.customerName,
+            address: p.address,
+          })),
+        );
 
-      const { status } = await Location.getForegroundPermissionsAsync();
-      if (status !== Location.PermissionStatus.GRANTED) {
-        setError('Location permission is required to optimize your route.');
+        if (created.length > 0) {
+          const idByRef = new Map(created.map((c) => [c.packageRef, c.id]));
+          setPackages((prev) =>
+            prev.map((p) => {
+              const newId = idByRef.get(p.packageRef);
+              return newId && !p.id ? { ...p, id: newId } : p;
+            }),
+          );
+        }
+
+        // Surface geocode failures so the boy can fix them. Successful rows stay
+        // in the list (now tagged), so nothing the boy entered is silently lost.
+        if (failed.length > 0) {
+          const label = failed.length > 1 ? 'addresses' : 'address';
+          setError(
+            `Couldn't locate ${failed.length} ${label}. Fix and add again:\n` +
+              failed.map((f) => `• ${f.packageRef}: ${f.address}`).join('\n'),
+          );
+          setOptimizing(false);
+          return;
+        }
+      }
+
+      // Check the live OS permission at tap time (and request it if a cached
+      // "denied" is stale) instead of trusting onboarding state — the user may
+      // have enabled location in Settings after skipping it.
+      const granted = await ensureLocationPermission();
+      if (!granted) {
+        setError(
+          'Location permission is required to optimize your route. Enable it in Settings and try again.',
+        );
         setOptimizing(false);
         return;
       }

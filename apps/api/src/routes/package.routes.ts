@@ -12,5 +12,6 @@ router.use(verifyToken, requireRole(Role.delivery_boy));
 
 router.patch('/:id/deliver', validate(markDeliveredSchema), packageController.markDelivered);
 router.patch('/:id/fail', validate(markFailedSchema), packageController.markFailed);
+router.delete('/:id', packageController.deletePackage);
 
 export const packageRouter = router;

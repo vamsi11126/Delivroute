@@ -6,6 +6,20 @@ interface Envelope<T> {
   data: T;
 }
 
+/** An address the server couldn't geocode, so it was skipped (not added). */
+export interface FailedAddress {
+  packageRef: string;
+  customerName: string;
+  address: string;
+  reason: string;
+}
+
+/** Result of a bulk add: the packages created plus any addresses that failed. */
+export interface AddPackagesResult {
+  created: Package[];
+  failed: FailedAddress[];
+}
+
 interface SessionWithPackages extends DeliverySession {
   packages: Package[];
 }
@@ -36,12 +50,15 @@ export async function getSession(sessionId: string): Promise<SessionWithPackages
   return data.data;
 }
 
-export async function addPackages(sessionId: string, packages: PackageInput[]): Promise<Package[]> {
-  const { data } = await apiClient.post<Envelope<Package[]>>(
+export async function addPackages(
+  sessionId: string,
+  packages: PackageInput[],
+): Promise<AddPackagesResult> {
+  const { data } = await apiClient.post<Envelope<Package[]> & { meta?: { failed?: FailedAddress[] } }>(
     `/sessions/${sessionId}/packages`,
     { packages },
   );
-  return data.data;
+  return { created: data.data, failed: data.meta?.failed ?? [] };
 }
 
 export async function optimizeRoute(
@@ -92,4 +109,12 @@ export async function markFailed(packageId: string, failReason: string): Promise
     failReason,
   });
   return data.data;
+}
+
+/**
+ * Remove a package that was already persisted server-side (e.g. from a prior
+ * partial-success add). Only permitted while the session is still pending.
+ */
+export async function deletePackage(packageId: string): Promise<void> {
+  await apiClient.delete(`/packages/${packageId}`);
 }

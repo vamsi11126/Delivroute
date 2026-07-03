@@ -71,39 +71,91 @@ export async function getSession(sessionId: string, storeId: string) {
   return session;
 }
 
+/** An address that couldn't be geocoded, returned so the boy can correct it. */
+export interface FailedAddress {
+  packageRef: string;
+  customerName: string;
+  address: string;
+  reason: string;
+}
+
+export interface AddPackagesResult {
+  created: Package[];
+  failed: FailedAddress[];
+}
+
 /**
  * Geocode each address via the configured MapProvider and create Package
  * records. New packages are appended after any existing ones (orderIndex
  * continues from the current max); call optimizeSession afterwards to order them.
+ *
+ * A single un-geocodable address must not sink the whole batch: every address
+ * that resolves is added, and the ones that don't are returned in `failed` so
+ * the delivery boy knows exactly which to fix. A provider outage
+ * (MAP_API_UNAVAILABLE) is different — it isn't the address's fault, so it
+ * propagates and fails the request rather than flagging every address as bad.
+ *
+ * Geocoding runs sequentially on purpose: Nominatim is rate-limited (and the
+ * OSM provider already sleeps between its own retries), so firing the whole
+ * batch in parallel risks 429s for no real speed-up.
  */
-export async function addPackages(sessionId: string, storeId: string, packages: PackageInput[]) {
+export async function addPackages(
+  sessionId: string,
+  storeId: string,
+  packages: PackageInput[],
+): Promise<AddPackagesResult> {
   await findScopedSession(sessionId, storeId);
 
   const provider = getMapProvider();
-  const geocoded = await Promise.all(
-    packages.map(async (pkg) => ({ input: pkg, coords: await provider.geocode(pkg.address) })),
-  );
+  const geocoded: { input: PackageInput; coords: LatLng }[] = [];
+  const failed: FailedAddress[] = [];
+
+  for (const pkg of packages) {
+    try {
+      const coords = await provider.geocode(pkg.address);
+      geocoded.push({ input: pkg, coords });
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'MAP_API_UNAVAILABLE') {
+        throw err;
+      }
+      const reason = err instanceof ApiError ? err.message : 'Could not geocode this address';
+      logger.warn('Skipping package with ungeocodable address', {
+        sessionId,
+        packageRef: pkg.packageRef,
+        address: pkg.address,
+        reason,
+      });
+      failed.push({
+        packageRef: pkg.packageRef,
+        customerName: pkg.customerName,
+        address: pkg.address,
+        reason,
+      });
+    }
+  }
 
   const existingCount = await prisma.package.count({ where: { sessionId } });
 
-  const created = await prisma.$transaction(
-    geocoded.map(({ input, coords }, i) =>
-      prisma.package.create({
-        data: {
-          sessionId,
-          packageRef: input.packageRef,
-          customerName: input.customerName,
-          addressRaw: input.address,
-          lat: coords.lat,
-          lng: coords.lng,
-          orderIndex: existingCount + i,
-          status: PackageStatus.pending,
-        },
-      }),
-    ),
-  );
+  const created = geocoded.length
+    ? await prisma.$transaction(
+        geocoded.map(({ input, coords }, i) =>
+          prisma.package.create({
+            data: {
+              sessionId,
+              packageRef: input.packageRef,
+              customerName: input.customerName,
+              addressRaw: input.address,
+              lat: coords.lat,
+              lng: coords.lng,
+              orderIndex: existingCount + i,
+              status: PackageStatus.pending,
+            },
+          }),
+        ),
+      )
+    : [];
 
-  return created;
+  return { created, failed };
 }
 
 /**
@@ -225,12 +277,34 @@ export async function endSession(sessionId: string, storeId: string) {
 async function findScopedPackage(packageId: string, boyId: string, storeId: string) {
   const pkg = await prisma.package.findFirst({
     where: { id: packageId, session: { boyId, storeId } },
-    include: { session: { select: { id: true, storeId: true, boyId: true } } },
+    include: { session: { select: { id: true, storeId: true, boyId: true, status: true } } },
   });
   if (!pkg) {
     throw new ApiError(404, 'NOT_FOUND', 'Package not found');
   }
   return pkg;
+}
+
+/**
+ * Hard-delete a package. Only the owning delivery boy (scoped via the session)
+ * may delete, and only while the session is still `pending` — once it has
+ * started, packages are part of the live run and must not vanish from the queue.
+ *
+ * Used by the mobile entry screen when the boy removes a row that a previous
+ * partial-success add had already persisted server-side.
+ */
+export async function deletePackage(packageId: string, boyId: string, storeId: string): Promise<void> {
+  const pkg = await findScopedPackage(packageId, boyId, storeId);
+  if (pkg.session.status !== SessionStatus.pending) {
+    throw new ApiError(409, 'CONFLICT', 'Packages can only be removed before the session starts');
+  }
+
+  // No FK cascade is configured, so clear any dependent logs first. A pending
+  // package normally has none, but this keeps the delete safe regardless.
+  await prisma.$transaction([
+    prisma.deliveryLog.deleteMany({ where: { packageId } }),
+    prisma.package.delete({ where: { id: packageId } }),
+  ]);
 }
 
 /**

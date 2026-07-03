@@ -41,3 +41,15 @@ export async function markFailed(req: Request, res: Response, next: NextFunction
     next(err);
   }
 }
+
+export async function deletePackage(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { boyId, storeId } = requireAuth(req);
+    await sessionService.deletePackage(String(req.params.id), boyId, storeId);
+    logger.info('Package deleted', { packageId: req.params.id, boyId });
+    res.json({ success: true, data: null, meta: {} });
+  } catch (err) {
+    logger.error('deletePackage failed', { error: (err as Error).message });
+    next(err);
+  }
+}

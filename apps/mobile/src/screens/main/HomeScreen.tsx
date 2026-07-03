@@ -13,6 +13,16 @@ import type { AppTabsParamList, HomeStackParamList } from '../../navigation/AppT
 
 type Props = StackScreenProps<HomeStackParamList, 'Home'>;
 
+type SessionCardState = 'none' | 'pending' | 'active' | 'completed';
+
+/** Accent colour per state — keeps the four cards visually distinct. */
+const STATE_ACCENTS: Record<SessionCardState, string> = {
+  none: '#1A56DB', // blue — no session yet
+  pending: '#F59E0B', // orange — created, still adding packages
+  active: '#10B981', // green — out for delivery
+  completed: '#6B7280', // gray — done for the day
+};
+
 export function HomeScreen({ navigation }: Props): React.JSX.Element {
   const currentSession = useSessionStore((s) => s.currentSession);
   const packages = useSessionStore((s) => s.packages);
@@ -67,15 +77,6 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
     }
   };
 
-  const handleResume = () => {
-    if (!currentSession) return;
-    if (currentSession.status === 'active') {
-      goToActiveDelivery(currentSession.id);
-    } else {
-      navigation.navigate('PackageEntry', { sessionId: currentSession.id });
-    }
-  };
-
   const total = packages.length;
   const delivered = packages.filter((p) => p.status === 'delivered').length;
   const failed = packages.filter((p) => p.status === 'failed' || p.status === 'skipped').length;
@@ -90,28 +91,49 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
     );
   }
 
-  const isActive = currentSession?.status === 'active';
-  const isCompleted = currentSession?.status === 'completed';
+  // One of four mutually-exclusive states drives the whole screen — each with
+  // its own accent colour, icon, copy and (optional) call-to-action.
+  const state: SessionCardState = !currentSession
+    ? 'none'
+    : currentSession.status === 'active'
+      ? 'active'
+      : currentSession.status === 'completed'
+        ? 'completed'
+        : 'pending';
+  const accent = STATE_ACCENTS[state];
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.container}>
         <View style={styles.content}>
-          {!currentSession ? (
+          {state === 'none' ? (
             <>
-              <View style={styles.iconCircle}>
+              <View style={[styles.iconCircle, { backgroundColor: `${accent}1A` }]}>
                 <Text style={styles.icon}>📦</Text>
               </View>
               <Text style={styles.title}>Ready to deliver?</Text>
               <Text style={styles.subtitle}>Start a new session and add your packages.</Text>
             </>
-          ) : isActive ? (
+          ) : state === 'pending' ? (
             <>
-              <View style={styles.iconCircle}>
+              <View style={[styles.iconCircle, { backgroundColor: `${accent}1A` }]}>
+                <Text style={styles.icon}>📦</Text>
+              </View>
+              <Text style={styles.title}>Session ready</Text>
+              <View style={[styles.statsCard, { borderLeftColor: accent, borderLeftWidth: 4 }]}>
+                <Text style={styles.statsText}>
+                  {total} {total === 1 ? 'package' : 'packages'} added
+                </Text>
+                <Text style={styles.statsSub}>Keep adding, then optimize your route.</Text>
+              </View>
+            </>
+          ) : state === 'active' ? (
+            <>
+              <View style={[styles.iconCircle, { backgroundColor: `${accent}1A` }]}>
                 <Text style={styles.icon}>🚚</Text>
               </View>
-              <Text style={styles.title}>Session in progress</Text>
-              <View style={styles.statsCard}>
+              <Text style={styles.title}>Delivery in progress</Text>
+              <View style={[styles.statsCard, { borderLeftColor: accent, borderLeftWidth: 4 }]}>
                 <Text style={styles.statsText}>
                   {delivered} of {total} delivered
                 </Text>
@@ -120,29 +142,24 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
                 ) : null}
               </View>
             </>
-          ) : isCompleted ? (
-            <>
-              <View style={styles.iconCircle}>
-                <Text style={styles.icon}>✅</Text>
-              </View>
-              <Text style={styles.title}>All done!</Text>
-              <View style={styles.statsCard}>
-                <Text style={styles.statsText}>Delivered {delivered} of {total}</Text>
-                {failed > 0 ? (
-                  <Text style={styles.statsSub}>{failed} not delivered</Text>
-                ) : null}
-              </View>
-            </>
           ) : (
             <>
-              <View style={styles.iconCircle}>
-                <Text style={styles.icon}>📦</Text>
+              <View style={[styles.iconCircle, { backgroundColor: `${accent}1A` }]}>
+                <Text style={styles.icon}>🎉</Text>
               </View>
-              <Text style={styles.title}>Session ready</Text>
-              <Text style={styles.subtitle}>
-                {total > 0
-                  ? 'Pick up where you left off and optimize your route.'
-                  : 'Add packages and optimize your route.'}
+              <Text style={styles.title}>All done for today! 🎉</Text>
+              <View style={[styles.statsCard, { borderLeftColor: accent, borderLeftWidth: 4 }]}>
+                <View style={styles.statRow}>
+                  <Text style={styles.statNumber}>{delivered}</Text>
+                  <Text style={styles.statCaption}>delivered</Text>
+                </View>
+                <View style={styles.statRow}>
+                  <Text style={styles.statNumber}>{failed}</Text>
+                  <Text style={styles.statCaption}>failed</Text>
+                </View>
+              </View>
+              <Text style={[styles.subtitle, { color: accent, fontWeight: '600' }]}>
+                Come back tomorrow 👋
               </Text>
             </>
           )}
@@ -150,20 +167,34 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </View>
 
-        <View style={styles.actions}>
-          {!currentSession || isCompleted ? (
-            <PrimaryButton
-              title="Start New Session"
-              loading={creating}
-              onPress={handleCreateSession}
-            />
-          ) : (
-            <PrimaryButton
-              title={isActive ? 'Resume Delivery' : 'Resume'}
-              onPress={handleResume}
-            />
-          )}
-        </View>
+        {/* Completed sessions are terminal for the day — no CTA at all. */}
+        {state !== 'completed' ? (
+          <View style={styles.actions}>
+            {state === 'none' ? (
+              <PrimaryButton
+                title="Start New Session"
+                loading={creating}
+                onPress={handleCreateSession}
+                style={{ backgroundColor: accent }}
+              />
+            ) : state === 'pending' ? (
+              <PrimaryButton
+                title="Continue Adding Packages"
+                onPress={() =>
+                  currentSession &&
+                  navigation.navigate('PackageEntry', { sessionId: currentSession.id })
+                }
+                style={{ backgroundColor: accent }}
+              />
+            ) : (
+              <PrimaryButton
+                title="Resume Delivery"
+                onPress={() => currentSession && goToActiveDelivery(currentSession.id)}
+                style={{ backgroundColor: accent }}
+              />
+            )}
+          </View>
+        ) : null}
       </View>
     </SafeAreaView>
   );
@@ -205,6 +236,9 @@ const styles = StyleSheet.create({
   },
   statsText: { fontSize: 16, fontWeight: '600', color: colors.text },
   statsSub: { marginTop: spacing.xs, fontSize: 13, color: colors.textMuted },
+  statRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm, marginVertical: 2 },
+  statNumber: { fontSize: 22, fontWeight: '800', color: colors.text, minWidth: 32, textAlign: 'right' },
+  statCaption: { fontSize: 14, color: colors.textMuted },
   error: { marginTop: spacing.lg, fontSize: 14, color: colors.error, textAlign: 'center' },
   actions: { gap: spacing.md },
 });

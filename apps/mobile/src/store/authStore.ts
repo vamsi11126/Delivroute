@@ -6,6 +6,7 @@ import {
   setStoredTokens,
   clearStoredTokens,
 } from '../storage/secureStorage';
+import { useSessionStore } from './sessionStore';
 
 interface LoginOptions {
   /**
@@ -87,6 +88,9 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logout: async () => {
     await clearStoredTokens();
+    // Wipe the delivery-session state too, so the next boy to sign in on this
+    // device never sees the previous user's session/packages.
+    useSessionStore.getState().reset();
     set({
       user: null,
       accessToken: null,

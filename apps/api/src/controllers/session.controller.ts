@@ -50,13 +50,21 @@ export async function getSession(req: Request, res: Response, next: NextFunction
 export async function addPackages(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { storeId } = requireAuth(req);
-    const created = await sessionService.addPackages(
+    const { created, failed } = await sessionService.addPackages(
       String(req.params.id),
       storeId,
       req.body.packages,
     );
-    logger.info('Packages added', { sessionId: req.params.id, count: created.length });
-    res.status(201).json({ success: true, data: created, meta: { count: created.length } });
+    logger.info('Packages added', {
+      sessionId: req.params.id,
+      count: created.length,
+      failed: failed.length,
+    });
+    res.status(201).json({
+      success: true,
+      data: created,
+      meta: { count: created.length, failed },
+    });
   } catch (err) {
     logger.error('addPackages failed', { error: (err as Error).message });
     next(err);
