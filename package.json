@@ -7,6 +7,11 @@
     "apps/*",
     "packages/*"
   ],
+  "comment:react": "The web app (Next 14) needs react@18; the mobile app needs react@19. Pin react@18 as a ROOT dependency so it hoists to the repo root — where Next's bundled styled-jsx resolves it, matching react-dom@18 during the web build's static export. The mobile app's react@19 (its own direct dep) nests into apps/mobile/node_modules, which Metro resolves from the app directory first, so mobile is unaffected.",
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
   "scripts": {
     "dev:api": "npm run dev --workspace=@delivroute/api",
     "dev:web": "npm run dev --workspace=@delivroute/web",
