@@ -3,7 +3,9 @@ import type { AuthTokens, User } from '../types/models';
 import {
   getAccessToken,
   getRefreshToken,
+  getStoredUser,
   setStoredTokens,
+  setStoredUser,
   clearStoredTokens,
 } from '../storage/secureStorage';
 import { useSessionStore } from './sessionStore';
@@ -57,11 +59,15 @@ export const useAuthStore = create<AuthState>((set) => ({
   isHydrated: false,
 
   hydrate: async () => {
-    const [accessToken, refreshToken] = await Promise.all([
+    const [accessToken, refreshToken, user] = await Promise.all([
       getAccessToken(),
       getRefreshToken(),
+      getStoredUser(),
     ]);
     set({
+      // Restore the persisted user (incl. storeId) so socket/store-scoped code
+      // works for returning users, not just freshly-logged-in ones.
+      user,
       accessToken,
       refreshToken,
       isAuthenticated: Boolean(accessToken),
@@ -73,6 +79,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   login: async (user, tokens, options) => {
     await setStoredTokens(tokens);
+    await setStoredUser(user);
     set({
       user,
       accessToken: tokens.accessToken,
@@ -82,7 +89,12 @@ export const useAuthStore = create<AuthState>((set) => ({
     });
   },
 
-  setUser: (user) => set({ user }),
+  setUser: (user) => {
+    // Persist too — SetProfile calls this with the completed user object, and
+    // its storeId must survive a restart.
+    void setStoredUser(user);
+    set({ user });
+  },
 
   completeOnboarding: () => set({ onboardingComplete: true }),
 

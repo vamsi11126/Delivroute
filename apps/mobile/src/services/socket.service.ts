@@ -117,6 +117,7 @@ export function connect(): void {
   }
 
   const { user } = useAuthStore.getState();
+  console.log('[socket] connect() — auth user:', JSON.stringify(user));
   const storeId = user?.storeId;
   if (!storeId) {
     console.log('[socket] connect() skipped — no storeId on current user');
