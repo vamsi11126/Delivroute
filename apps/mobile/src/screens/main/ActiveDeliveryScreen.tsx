@@ -16,6 +16,9 @@ import { TextField } from '../../components/TextField';
 import { PrimaryButton } from '../../components/PrimaryButton';
 import { getSession, markDelivered, markFailed } from '../../api/session';
 import { getApiErrorMessage } from '../../api/errors';
+import * as socketService from '../../services/socket.service';
+import * as gpsService from '../../services/gps.service';
+import { flushQueue } from '../../utils/offlineQueue';
 import { useSessionStore } from '../../store/sessionStore';
 import { formatDistance, formatMinutes, haversineKm, estimateMinutes } from '../../utils/geo';
 import { colors, radius, spacing } from '../../theme';
@@ -33,6 +36,8 @@ export function ActiveDeliveryScreen({ navigation, route }: Props): React.JSX.El
   const currentSession = useSessionStore((s) => s.currentSession);
   const orderedPackages = useSessionStore((s) => s.orderedPackages);
   const setSession = useSessionStore((s) => s.startSession);
+  const updatePackage = useSessionStore((s) => s.updatePackage);
+  const setTracking = useSessionStore((s) => s.setTracking);
 
   const sessionId = route.params?.sessionId ?? currentSession?.id ?? null;
 
@@ -40,6 +45,8 @@ export function ActiveDeliveryScreen({ navigation, route }: Props): React.JSX.El
   const [marking, setMarking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  // Drives the Live/Offline indicator; polled from the socket every few seconds.
+  const [live, setLive] = useState(false);
 
   const [failSheetOpen, setFailSheetOpen] = useState(false);
   const [otherReason, setOtherReason] = useState('');
@@ -86,6 +93,44 @@ export function ActiveDeliveryScreen({ navigation, route }: Props): React.JSX.El
       active = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Real-time lifecycle: connect the socket + start GPS while this screen is
+  // mounted (i.e. the session is active), and tear both down on unmount /
+  // session complete. Background/lock is handled by expo-location itself, which
+  // pauses foreground updates — no background service required.
+  useEffect(() => {
+    socketService.connect();
+    void gpsService.startTracking();
+    setTracking(true);
+
+    // Listen for delivery outcomes pushed from the server (e.g. a re-optimise
+    // triggered elsewhere) and reflect them in the local session state.
+    const offDelivery = socketService.onDeliveryStatus(({ packageId, status }) => {
+      updatePackage(packageId, { status });
+    });
+
+    // When the socket recovers from a drop, replay any GPS pings buffered while
+    // we were offline.
+    const offReconnect = socketService.onReconnect(() => {
+      void flushQueue();
+    });
+
+    return () => {
+      offDelivery();
+      offReconnect();
+      gpsService.stopTracking();
+      socketService.disconnect();
+      setTracking(false);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Poll the socket connection state every 5s to drive the Live/Offline badge.
+  useEffect(() => {
+    setLive(socketService.isConnected());
+    const id = setInterval(() => setLive(socketService.isConnected()), 5000);
+    return () => clearInterval(id);
   }, []);
 
   // Once every stop is resolved, move on to the summary.
@@ -152,10 +197,18 @@ export function ActiveDeliveryScreen({ navigation, route }: Props): React.JSX.El
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.container}>
         <View style={styles.progressHeader}>
-          <Text style={styles.progressText}>
-            {resolved} of {total} done
-            {delivered !== resolved ? `  ·  ${delivered} delivered` : ''}
-          </Text>
+          <View style={styles.progressTopRow}>
+            <Text style={styles.progressText}>
+              {resolved} of {total} done
+              {delivered !== resolved ? `  ·  ${delivered} delivered` : ''}
+            </Text>
+            <View style={styles.liveBadge}>
+              <View style={[styles.liveDot, live ? styles.liveDotOn : styles.liveDotOff]} />
+              <Text style={[styles.liveText, live ? styles.liveTextOn : styles.liveTextOff]}>
+                {live ? 'Live' : 'Offline'}
+              </Text>
+            </View>
+          </View>
           <View style={styles.progressTrack}>
             <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` }]} />
           </View>
@@ -253,7 +306,20 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: spacing.md },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   progressHeader: { marginBottom: spacing.md },
-  progressText: { fontSize: 14, fontWeight: '600', color: colors.text, marginBottom: spacing.sm },
+  progressTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
+  progressText: { fontSize: 14, fontWeight: '600', color: colors.text },
+  liveBadge: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  liveDot: { width: 8, height: 8, borderRadius: 4 },
+  liveDotOn: { backgroundColor: colors.success },
+  liveDotOff: { backgroundColor: colors.textMuted },
+  liveText: { fontSize: 12, fontWeight: '600' },
+  liveTextOn: { color: colors.success },
+  liveTextOff: { color: colors.textMuted },
   progressTrack: {
     height: 8,
     borderRadius: 4,

@@ -7,10 +7,19 @@ interface SessionState {
   packages: Package[];
   /** Packages sorted by the optimiser's orderIndex (delivery order). */
   orderedPackages: Package[];
+  /** Latest GPS fix for the boy, mirrored from the GPS tracker (null = none yet). */
+  currentLat: number | null;
+  currentLng: number | null;
+  /** Whether live GPS tracking is currently running for this session. */
+  isTracking: boolean;
   /** Set the active session + its packages (e.g. after fetch/optimise). */
   startSession: (session: DeliverySession, packages?: Package[]) => void;
   /** Patch a single package by id and re-derive the ordered list. */
   updatePackage: (packageId: string, patch: Partial<Package>) => void;
+  /** Record the boy's latest GPS position (called on each tracking fix). */
+  setCurrentLocation: (lat: number, lng: number) => void;
+  /** Flag whether live tracking is on. */
+  setTracking: (isTracking: boolean) => void;
   /** Clear all session state (on End Session / logout). */
   reset: () => void;
 }
@@ -24,6 +33,9 @@ export const useSessionStore = create<SessionState>((set) => ({
   currentSession: null,
   packages: [],
   orderedPackages: [],
+  currentLat: null,
+  currentLng: null,
+  isTracking: false,
 
   startSession: (session, packages = []) =>
     set({
@@ -40,5 +52,17 @@ export const useSessionStore = create<SessionState>((set) => ({
       return { packages, orderedPackages: sortByOrder(packages) };
     }),
 
-  reset: () => set({ currentSession: null, packages: [], orderedPackages: [] }),
+  setCurrentLocation: (lat, lng) => set({ currentLat: lat, currentLng: lng }),
+
+  setTracking: (isTracking) => set({ isTracking }),
+
+  reset: () =>
+    set({
+      currentSession: null,
+      packages: [],
+      orderedPackages: [],
+      currentLat: null,
+      currentLng: null,
+      isTracking: false,
+    }),
 }));

@@ -12,7 +12,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Swipeable } from 'react-native-gesture-handler';
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useFocusEffect } from '@react-navigation/native';
-import * as Location from 'expo-location';
 import { TextField } from '../../components/TextField';
 import { PrimaryButton } from '../../components/PrimaryButton';
 import {
@@ -23,6 +22,7 @@ import {
   type PackageInput,
 } from '../../api/session';
 import { getApiErrorMessage } from '../../api/errors';
+import * as gpsService from '../../services/gps.service';
 import { useSessionStore } from '../../store/sessionStore';
 import { usePermissionStore } from '../../store/permissionStore';
 import { colors, radius, spacing } from '../../theme';
@@ -188,7 +188,7 @@ export function PackageEntryScreen({ navigation, route }: Props): React.JSX.Elem
         setOptimizing(false);
         return;
       }
-      const location = await Location.getCurrentPositionAsync({});
+      const location = await gpsService.getCurrentLocation();
       const session = await optimizeRoute(
         sessionId,
         location.coords.latitude,
