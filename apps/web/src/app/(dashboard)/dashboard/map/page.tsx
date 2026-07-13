@@ -166,7 +166,7 @@ export default function LiveFleetPage() {
       </div>
 
       <Card className="overflow-hidden">
-        <CardContent className="relative h-[70vh] p-0">
+        <CardContent className="relative h-[600px] p-0">
           {isEmpty ? (
             <div className="flex h-full items-center justify-center">
               <p className="text-sm text-muted-foreground">

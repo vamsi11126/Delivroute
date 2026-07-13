@@ -6,6 +6,20 @@ import L from 'leaflet';
 import { formatDistanceToNow } from 'date-fns';
 import 'leaflet/dist/leaflet.css';
 
+// Leaflet's default marker icons resolve their image URLs relative to the CSS,
+// which breaks under Next.js bundling (the images 404 and markers vanish).
+// Point the defaults at the CDN-hosted assets so any default Marker renders.
+// The fleet pins below use divIcons and don't rely on this, but keeping it
+// here means a plain <Marker> added later still shows up.
+delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })
+  ._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl:
+    'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+});
+
 export type PinColor = 'green' | 'orange' | 'red';
 
 export interface FleetPin {
@@ -64,7 +78,10 @@ export default function FleetMap({ pins }: { pins: FleetPin[] }) {
       center={INDIA_CENTER}
       zoom={INITIAL_ZOOM}
       scrollWheelZoom
-      className="h-full w-full"
+      // Explicit pixel height: relying on `h-full` (height:100%) collapses the
+      // map to 0px if any ancestor's height isn't resolved when Leaflet inits,
+      // which makes the tiles render once and then disappear.
+      style={{ height: '600px', width: '100%' }}
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
