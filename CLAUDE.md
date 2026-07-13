@@ -471,7 +471,7 @@ Admin Login, Admin Dashboard, Stores List, Store Detail, Subscriptions, Revenue,
 - [ ] Prompt 12 — Core delivery screens
 - [ ] Prompt 13 — GPS tracking + Socket.io mobile
 - [ ] Prompt 14 — Web app setup + NextAuth
-- [ ] Prompt 15 — Store dashboard pages + live map
+- [x] Prompt 15 — Store dashboard pages + live map
 - [ ] Prompt 16 — Admin panel pages
 - [ ] Prompt 17 — Razorpay billing
 - [ ] Prompt 18 — Final cleanup + tests + Docker (Redis only)
