@@ -1,4 +1,4 @@
-import { PackageStatus, Role, StoreStatus, SubStatus } from '@prisma/client';
+import { PackageStatus, Plan, Role, StoreStatus, SubStatus } from '@prisma/client';
 import { prisma } from '../utils/prisma';
 import { ApiError } from '../utils/errors';
 
@@ -74,6 +74,11 @@ export async function getStore(storeId: string) {
           users: { where: { role: Role.delivery_boy, isActive: true, deletedAt: null } },
         },
       },
+      users: {
+        where: { role: Role.delivery_boy, deletedAt: null },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, name: true, phone: true, isActive: true },
+      },
       sessions: {
         orderBy: { createdAt: 'desc' },
         take: 10,
@@ -95,10 +100,11 @@ export async function getStore(storeId: string) {
     throw new ApiError(404, 'NOT_FOUND', 'Store not found');
   }
 
-  const { _count, sessions, ...rest } = store;
+  const { _count, sessions, users, ...rest } = store;
   return {
     ...rest,
     boyCount: _count.users,
+    deliveryBoys: users,
     recentSessions: sessions.map(({ _count: sc, ...session }) => ({
       ...session,
       packageCount: sc.packages,
@@ -106,8 +112,11 @@ export async function getStore(storeId: string) {
   };
 }
 
-/** Update a store's lifecycle status (trial / active / suspended). */
-export async function updateStoreStatus(storeId: string, status: StoreStatus) {
+/** Update a store's lifecycle status and/or plan. */
+export async function updateStoreStatus(
+  storeId: string,
+  data: { status?: StoreStatus; plan?: Plan },
+) {
   const store = await prisma.store.findFirst({
     where: { id: storeId, deletedAt: null },
     select: { id: true },
@@ -118,7 +127,10 @@ export async function updateStoreStatus(storeId: string, status: StoreStatus) {
 
   return prisma.store.update({
     where: { id: store.id },
-    data: { status },
+    data: {
+      ...(data.status !== undefined ? { status: data.status } : {}),
+      ...(data.plan !== undefined ? { plan: data.plan } : {}),
+    },
     select: { id: true, name: true, plan: true, status: true },
   });
 }

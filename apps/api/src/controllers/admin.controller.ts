@@ -48,8 +48,11 @@ export async function getStore(req: Request, res: Response, next: NextFunction):
 export async function updateStoreStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const storeId = String(req.params.id);
-    const store = await adminService.updateStoreStatus(storeId, req.body.status);
-    logger.info('Store status updated', { storeId, status: store.status });
+    const store = await adminService.updateStoreStatus(storeId, {
+      status: req.body.status,
+      plan: req.body.plan,
+    });
+    logger.info('Store updated', { storeId, status: store.status, plan: store.plan });
     res.json({ success: true, data: store, meta: {} });
   } catch (err) {
     logger.error('updateStoreStatus failed', { error: (err as Error).message });
