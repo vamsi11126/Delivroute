@@ -28,6 +28,11 @@ export const sendOtpSchema = z.object({
   phone: z.string().trim().min(1, 'Phone is required'),
 });
 
+/** Public phone lookup used to branch new vs returning users on mobile. */
+export const checkPhoneSchema = z.object({
+  phone: z.string().trim().min(1, 'Phone is required'),
+});
+
 /**
  * Delivery boy onboarding — step one. Verifies the OTP only; the account is
  * created with a throwaway password and the name/real password are set later
@@ -48,5 +53,6 @@ export type RegisterStoreInput = z.infer<typeof registerStoreSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RefreshInput = z.infer<typeof refreshSchema>;
 export type SendOtpInput = z.infer<typeof sendOtpSchema>;
+export type CheckPhoneInput = z.infer<typeof checkPhoneSchema>;
 export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;

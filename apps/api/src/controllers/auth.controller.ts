@@ -26,6 +26,17 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
   }
 }
 
+export async function checkPhone(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { phone } = req.body;
+    const exists = await authService.checkPhoneExists(phone);
+    res.json({ success: true, data: { exists }, meta: {} });
+  } catch (err) {
+    logger.error('checkPhone failed', { error: (err as Error).message });
+    next(err);
+  }
+}
+
 export async function refresh(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const tokens = await authService.refresh(req.body.refreshToken);

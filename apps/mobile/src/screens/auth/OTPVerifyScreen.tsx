@@ -57,7 +57,7 @@ export function OTPVerifyScreen({ navigation, route }: Props): React.JSX.Element
         await login(user, tokens, { onboardingComplete: false });
         navigation.navigate('SetProfile', { phone });
       } else {
-        // Returning user — RootNavigator swaps to AppTabs once this resolves.
+        // Returning user path is kept for backward compatibility.
         await login(user, tokens, { onboardingComplete: true });
       }
     } catch (err) {
@@ -110,8 +110,7 @@ export function OTPVerifyScreen({ navigation, route }: Props): React.JSX.Element
       <View style={styles.container}>
         <Text style={styles.title}>Enter your code</Text>
         <Text style={styles.subtitle}>
-          Enter the 6-digit code your store owner shared for{' '}
-          <Text style={styles.phone}>{phone}</Text>
+          Enter the 6-digit code sent to <Text style={styles.phone}>{phone}</Text>
         </Text>
 
         <View style={styles.boxes}>
@@ -146,7 +145,7 @@ export function OTPVerifyScreen({ navigation, route }: Props): React.JSX.Element
         {verifying ? (
           <View style={styles.verifyingRow}>
             <ActivityIndicator color={colors.primary} />
-            <Text style={styles.verifyingText}>Verifying…</Text>
+            <Text style={styles.verifyingText}>Verifying...</Text>
           </View>
         ) : null}
 
@@ -154,8 +153,7 @@ export function OTPVerifyScreen({ navigation, route }: Props): React.JSX.Element
 
         <View style={styles.resendRow}>
           <Text style={styles.timerText}>
-            Didn&apos;t get a code? Ask your store owner to re-invite you — codes
-            expire after 10 minutes.
+            Didn&apos;t get a code? Go back and try again. Codes expire after 10 minutes.
           </Text>
         </View>
       </View>

@@ -4,11 +4,13 @@ import { PhoneEntryScreen } from '../screens/auth/PhoneEntryScreen';
 import { OTPVerifyScreen } from '../screens/auth/OTPVerifyScreen';
 import { SetProfileScreen } from '../screens/auth/SetProfileScreen';
 import { PermissionsScreen } from '../screens/auth/PermissionsScreen';
+import { PasswordLoginScreen } from '../screens/auth/PasswordLoginScreen';
 
-/** Onboarding flow for delivery boys: phone → OTP → profile → permissions. */
+/** Auth flow: phone check branches returning users to password login, new users to OTP. */
 export type AuthStackParamList = {
   PhoneEntry: undefined;
   OTPVerify: { phone: string };
+  PasswordLogin: { phone: string };
   SetProfile: { phone: string };
   Permissions: undefined;
 };
@@ -27,6 +29,11 @@ export function AuthStack(): React.JSX.Element {
         name="OTPVerify"
         component={OTPVerifyScreen}
         options={{ title: 'Verify OTP' }}
+      />
+      <Stack.Screen
+        name="PasswordLogin"
+        component={PasswordLoginScreen}
+        options={{ title: 'Login' }}
       />
       <Stack.Screen
         name="SetProfile"

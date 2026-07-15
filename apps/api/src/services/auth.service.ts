@@ -116,6 +116,16 @@ export async function login(identifier: string, password: string) {
   return { user: safeUser, ...tokens };
 }
 
+/** Public phone lookup used by mobile to branch the auth flow. */
+export async function checkPhoneExists(phone: string): Promise<boolean> {
+  const user = await prisma.user.findFirst({
+    where: { phone, deletedAt: null, isActive: true },
+    select: { id: true },
+  });
+
+  return Boolean(user);
+}
+
 /** Rotate a refresh token: validate, delete the old, issue a fresh pair. */
 export async function refresh(token: string): Promise<AuthTokens> {
   const key = `refresh:${token}`;
@@ -156,15 +166,16 @@ export async function logout(token: string): Promise<void> {
  * code / owner-initiated invite) before supporting multiple stores.
  */
 export async function generateOtp(phone: string, storeId?: string): Promise<string> {
-  // Both new and existing users may request an OTP — new boys for first-time
-  // onboarding, existing boys for re-authentication. verifyOtp distinguishes
-  // the two cases via isNewUser.
   const existing = await prisma.user.findFirst({
-    where: { phone, deletedAt: null },
+    where: { phone, deletedAt: null, isActive: true },
     select: { id: true, storeId: true },
   });
 
-  let resolvedStoreId = storeId ?? existing?.storeId ?? undefined;
+  if (existing) {
+    throw new ApiError(409, 'CONFLICT', 'Phone number is already registered');
+  }
+
+  let resolvedStoreId = storeId;
   if (!resolvedStoreId) {
     const firstStore = await prisma.store.findFirst({
       where: { deletedAt: null },

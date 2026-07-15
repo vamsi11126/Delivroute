@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -7,10 +7,13 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import axios from 'axios';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Controller, useForm } from 'react-hook-form';
 import type { StackScreenProps } from '@react-navigation/stack';
 import { PrimaryButton } from '../../components/PrimaryButton';
+import { checkPhone, sendOtp } from '../../api/auth';
+import { getApiErrorMessage } from '../../api/errors';
 import { colors, radius, spacing } from '../../theme';
 import type { AuthStackParamList } from '../../navigation/AuthStack';
 
@@ -28,12 +31,32 @@ export function PhoneEntryScreen({ navigation }: Props): React.JSX.Element {
     handleSubmit,
     formState: { errors },
   } = useForm<FormValues>({ defaultValues: { phone: '' }, mode: 'onSubmit' });
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const onSubmit = ({ phone }: FormValues) => {
-    // No SMS provider — the store owner generates the OTP from their dashboard
-    // and shares it directly. We only collect the phone here; hitting send-otp
-    // would overwrite the owner's invite code in Redis.
-    navigation.navigate('OTPVerify', { phone: `${COUNTRY_CODE}${phone}` });
+  const onSubmit = async ({ phone }: FormValues) => {
+    const fullPhone = `${COUNTRY_CODE}${phone}`;
+    setSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const exists = await checkPhone(fullPhone);
+      if (exists) {
+        navigation.navigate('PasswordLogin', { phone: fullPhone });
+        return;
+      }
+
+      await sendOtp(fullPhone);
+      navigation.navigate('OTPVerify', { phone: fullPhone });
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 409) {
+        navigation.navigate('PasswordLogin', { phone: fullPhone });
+        return;
+      }
+      setSubmitError(getApiErrorMessage(err, 'Could not start login. Please try again.'));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -46,8 +69,8 @@ export function PhoneEntryScreen({ navigation }: Props): React.JSX.Element {
           <View>
             <Text style={styles.title}>Enter your phone number</Text>
             <Text style={styles.subtitle}>
-              Your store owner will share a 6-digit code with you. Enter your
-              number, then the code on the next screen.
+              We will check your number first. New users get a one-time code, and
+              returning users go straight to password login.
             </Text>
 
             <Controller
@@ -87,17 +110,23 @@ export function PhoneEntryScreen({ navigation }: Props): React.JSX.Element {
                       autoFocus
                       returnKeyType="done"
                       onSubmitEditing={handleSubmit(onSubmit)}
+                      editable={!submitting}
                     />
                   </View>
                   {errors.phone ? (
                     <Text style={styles.errorText}>{errors.phone.message}</Text>
                   ) : null}
+                  {submitError ? <Text style={styles.submitError}>{submitError}</Text> : null}
                 </View>
               )}
             />
           </View>
 
-          <PrimaryButton title="Continue" onPress={handleSubmit(onSubmit)} />
+          <PrimaryButton
+            title={submitting ? 'Checking...' : 'Continue'}
+            onPress={handleSubmit(onSubmit)}
+            loading={submitting}
+          />
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -131,4 +160,5 @@ const styles = StyleSheet.create({
   },
   phoneInput: { flex: 1, height: 52, fontSize: 16, color: colors.text, letterSpacing: 1 },
   errorText: { marginTop: spacing.sm, fontSize: 13, color: colors.error },
+  submitError: { marginTop: spacing.sm, fontSize: 13, color: colors.error },
 });

@@ -8,6 +8,7 @@ import {
   loginSchema,
   refreshSchema,
   logoutSchema,
+  checkPhoneSchema,
   sendOtpSchema,
   verifyOtpSchema,
   updateProfileSchema,
@@ -31,6 +32,7 @@ router.use(authLimiter);
 // Public
 router.post('/register-store', validate(registerStoreSchema), authController.registerStore);
 router.post('/login', validate(loginSchema), authController.login);
+router.post('/check-phone', validate(checkPhoneSchema), authController.checkPhone);
 router.post('/refresh', validate(refreshSchema), authController.refresh);
 router.post('/verify-otp', validate(verifyOtpSchema), authController.verifyOtp);
 // Public (dev): delivery-boy self-onboarding requests its own OTP. The store is
