@@ -10,3 +10,5 @@ services:
         value: production
       - key: PORT
         value: 4000
+      - key: SOCKET_CORS_ORIGINS
+        value: https://delivroute-web-six.vercel.app,http://localhost:3000
