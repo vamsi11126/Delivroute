@@ -13,6 +13,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'DelivRoute',
   slug: 'delivroute',
+  owner: 'vamsi2618',
   version: '0.1.0',
   orientation: 'portrait',
   icon: './assets/icon.png',
@@ -67,5 +68,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     apiUrl: process.env.API_URL ?? 'http://localhost:4000/v1',
     mapProvider: process.env.MAP_PROVIDER ?? 'osm',
     googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY ?? '',
+    eas: {
+      projectId: '0448ce40-78e3-4aed-801c-050e3ffab331',
+    },
   },
 });
