@@ -29,7 +29,7 @@ export function createApp(): Application {
   app.use(express.urlencoded({ extended: true }));
   app.use(
     morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev', {
-      stream: { write: (message) => logger.info(message.trim()) },
+      stream: { write: (message: string) => logger.info(message.trim()) },
     }),
   );
 

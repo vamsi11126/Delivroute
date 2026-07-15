@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import type { JwtPayload } from 'jsonwebtoken';
 import { Role } from '@prisma/client';
 import { ApiError } from './errors';
 
@@ -30,7 +31,7 @@ export function signAccessToken(payload: AccessTokenPayload): string {
 /** Verify an access token, returning its claims. Throws ApiError(401) if invalid. */
 export function verifyAccessToken(token: string): AccessTokenPayload {
   try {
-    const decoded = jwt.verify(token, getSecret()) as jwt.JwtPayload & AccessTokenPayload;
+    const decoded = jwt.verify(token, getSecret()) as JwtPayload & AccessTokenPayload;
     return {
       id: decoded.id,
       role: decoded.role,
