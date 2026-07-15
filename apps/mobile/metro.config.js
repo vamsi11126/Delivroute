@@ -6,6 +6,7 @@ const path = require('path');
 
 const projectRoot = __dirname;
 const workspaceRoot = path.resolve(projectRoot, '../..');
+const appNodeModules = path.resolve(projectRoot, 'node_modules');
 
 const config = getDefaultConfig(projectRoot);
 
@@ -17,8 +18,25 @@ config.watchFolders = [...(config.watchFolders ?? []), workspaceRoot];
 
 // Resolve modules from the app first, then the hoisted workspace root.
 config.resolver.nodeModulesPaths = [
-  path.resolve(projectRoot, 'node_modules'),
+  appNodeModules,
+  path.resolve(appNodeModules, 'expo/node_modules'),
+  path.resolve(appNodeModules, 'react-native/node_modules'),
   path.resolve(workspaceRoot, 'node_modules'),
 ];
+
+// Metro can still walk up to the workspace root for package resolution, which
+// is how a second React copy sneaks into the mobile bundle in a monorepo.
+// Pin the core runtime packages to the app-local install so hooks always come
+// from the same React instance.
+config.resolver.disableHierarchicalLookup = true;
+config.resolver.extraNodeModules = {
+  react: path.resolve(appNodeModules, 'react'),
+  'react-native': path.resolve(appNodeModules, 'react-native'),
+  'expo-asset': path.resolve(appNodeModules, 'expo/node_modules/expo-asset'),
+  '@react-native/virtualized-lists': path.resolve(
+    appNodeModules,
+    'react-native/node_modules/@react-native/virtualized-lists',
+  ),
+};
 
 module.exports = config;
