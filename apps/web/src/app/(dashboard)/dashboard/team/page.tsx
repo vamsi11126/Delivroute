@@ -239,10 +239,12 @@ function AddBoyDialog({
   const { toast } = useToast();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [issuedOtp, setIssuedOtp] = useState<string | null>(null);
 
   const reset = () => {
     setName('');
     setPhone('');
+    setIssuedOtp(null);
   };
 
   const mutation = useMutation({
@@ -256,14 +258,18 @@ function AddBoyDialog({
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['store', 'team'] });
-      toast({
-        title: 'Invite sent',
-        description: data.otp
-          ? `Share this OTP with ${name.trim()}: ${data.otp} (dev only). They enter it in the DelivRoute app to finish onboarding.`
-          : `An OTP was sent to +91${phone.replace(/\D/g, '')}. Ask ${name.trim()} to enter it in the DelivRoute app.`,
-      });
-      reset();
-      onOpenChange(false);
+      if (data.otp) {
+        // No SMS provider yet — keep the dialog open and show the OTP so the
+        // owner can share it with the delivery boy directly.
+        setIssuedOtp(data.otp);
+      } else {
+        toast({
+          title: 'Invite sent',
+          description: `An OTP was sent to +91${phone.replace(/\D/g, '')}. Ask ${name.trim()} to enter it in the DelivRoute app.`,
+        });
+        reset();
+        onOpenChange(false);
+      }
     },
     onError: (err) => {
       toast({
@@ -286,62 +292,103 @@ function AddBoyDialog({
       }}
     >
       <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Add delivery boy</DialogTitle>
-          <DialogDescription>
-            We&apos;ll send a one-time code they enter in the mobile app to join
-            your team.
-          </DialogDescription>
-        </DialogHeader>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (canSubmit) mutation.mutate();
-          }}
-          className="space-y-4"
-        >
-          <div className="space-y-1">
-            <Label htmlFor="name">Name</Label>
-            <Input
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ravi Kumar"
-              autoFocus
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="phone">Phone</Label>
-            <div className="flex">
-              <span className="inline-flex items-center rounded-l-md border border-r-0 border-input bg-muted px-3 text-sm text-muted-foreground">
-                +91
+        {issuedOtp ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Share this code with {name.trim() || 'the delivery boy'}</DialogTitle>
+              <DialogDescription>
+                They enter their phone number and this 6-digit code in the
+                DelivRoute app to join your team. The code expires in 10
+                minutes — you can re-invite to get a fresh one.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex items-center justify-center rounded-md border bg-muted py-6">
+              <span className="font-mono text-4xl font-bold tracking-[0.5em]">
+                {issuedOtp}
               </span>
-              <Input
-                id="phone"
-                inputMode="numeric"
-                value={phone}
-                onChange={(e) =>
-                  setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))
-                }
-                placeholder="98765 43210"
-                className="rounded-l-none"
-              />
             </div>
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={mutation.isPending}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  void navigator.clipboard.writeText(issuedOtp);
+                  toast({ title: 'Copied', description: 'OTP copied to clipboard.' });
+                }}
+              >
+                Copy code
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  reset();
+                  onOpenChange(false);
+                }}
+              >
+                Done
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>Add delivery boy</DialogTitle>
+              <DialogDescription>
+                We&apos;ll generate a one-time code — share it with them to enter
+                in the mobile app and join your team.
+              </DialogDescription>
+            </DialogHeader>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (canSubmit) mutation.mutate();
+              }}
+              className="space-y-4"
             >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={!canSubmit || mutation.isPending}>
-              {mutation.isPending ? 'Sending…' : 'Send invite'}
-            </Button>
-          </DialogFooter>
-        </form>
+              <div className="space-y-1">
+                <Label htmlFor="name">Name</Label>
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Ravi Kumar"
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="phone">Phone</Label>
+                <div className="flex">
+                  <span className="inline-flex items-center rounded-l-md border border-r-0 border-input bg-muted px-3 text-sm text-muted-foreground">
+                    +91
+                  </span>
+                  <Input
+                    id="phone"
+                    inputMode="numeric"
+                    value={phone}
+                    onChange={(e) =>
+                      setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))
+                    }
+                    placeholder="98765 43210"
+                    className="rounded-l-none"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  disabled={mutation.isPending}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={!canSubmit || mutation.isPending}>
+                  {mutation.isPending ? 'Generating…' : 'Generate code'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

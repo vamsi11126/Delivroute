@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -11,8 +11,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Controller, useForm } from 'react-hook-form';
 import type { StackScreenProps } from '@react-navigation/stack';
 import { PrimaryButton } from '../../components/PrimaryButton';
-import { sendOtp } from '../../api/auth';
-import { getApiErrorMessage } from '../../api/errors';
 import { colors, radius, spacing } from '../../theme';
 import type { AuthStackParamList } from '../../navigation/AuthStack';
 
@@ -25,27 +23,17 @@ interface FormValues {
 const COUNTRY_CODE = '+91';
 
 export function PhoneEntryScreen({ navigation }: Props): React.JSX.Element {
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-
   const {
     control,
     handleSubmit,
     formState: { errors },
   } = useForm<FormValues>({ defaultValues: { phone: '' }, mode: 'onSubmit' });
 
-  const onSubmit = async ({ phone }: FormValues) => {
-    setSubmitError(null);
-    setSubmitting(true);
-    const fullPhone = `${COUNTRY_CODE}${phone}`;
-    try {
-      await sendOtp(fullPhone);
-      navigation.navigate('OTPVerify', { phone: fullPhone });
-    } catch (err) {
-      setSubmitError(getApiErrorMessage(err, 'Could not send OTP. Please try again.'));
-    } finally {
-      setSubmitting(false);
-    }
+  const onSubmit = ({ phone }: FormValues) => {
+    // No SMS provider — the store owner generates the OTP from their dashboard
+    // and shares it directly. We only collect the phone here; hitting send-otp
+    // would overwrite the owner's invite code in Redis.
+    navigation.navigate('OTPVerify', { phone: `${COUNTRY_CODE}${phone}` });
   };
 
   return (
@@ -58,7 +46,8 @@ export function PhoneEntryScreen({ navigation }: Props): React.JSX.Element {
           <View>
             <Text style={styles.title}>Enter your phone number</Text>
             <Text style={styles.subtitle}>
-              We&apos;ll send a 6-digit code to verify it&apos;s you.
+              Your store owner will share a 6-digit code with you. Enter your
+              number, then the code on the next screen.
             </Text>
 
             <Controller
@@ -87,7 +76,6 @@ export function PhoneEntryScreen({ navigation }: Props): React.JSX.Element {
                       style={styles.phoneInput}
                       value={value}
                       onChangeText={(t) => {
-                        setSubmitError(null);
                         onChange(t.replace(/[^0-9]/g, ''));
                       }}
                       onBlur={onBlur}
@@ -107,15 +95,9 @@ export function PhoneEntryScreen({ navigation }: Props): React.JSX.Element {
                 </View>
               )}
             />
-
-            {submitError ? <Text style={styles.errorText}>{submitError}</Text> : null}
           </View>
 
-          <PrimaryButton
-            title="Send OTP"
-            loading={submitting}
-            onPress={handleSubmit(onSubmit)}
-          />
+          <PrimaryButton title="Continue" onPress={handleSubmit(onSubmit)} />
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

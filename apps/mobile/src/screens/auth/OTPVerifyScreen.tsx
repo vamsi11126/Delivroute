@@ -1,7 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -11,7 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { StackScreenProps } from '@react-navigation/stack';
-import { sendOtp, verifyOtp } from '../../api/auth';
+import { verifyOtp } from '../../api/auth';
 import { getApiErrorMessage } from '../../api/errors';
 import { useAuthStore } from '../../store/authStore';
 import { colors, radius, spacing } from '../../theme';
@@ -20,7 +19,6 @@ import type { AuthStackParamList } from '../../navigation/AuthStack';
 type Props = StackScreenProps<AuthStackParamList, 'OTPVerify'>;
 
 const OTP_LENGTH = 6;
-const RESEND_SECONDS = 30;
 const EMPTY_OTP = Array<string>(OTP_LENGTH).fill('');
 
 export function OTPVerifyScreen({ navigation, route }: Props): React.JSX.Element {
@@ -30,21 +28,10 @@ export function OTPVerifyScreen({ navigation, route }: Props): React.JSX.Element
   const [digits, setDigits] = useState<string[]>(EMPTY_OTP);
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [secondsLeft, setSecondsLeft] = useState(RESEND_SECONDS);
-  const [resending, setResending] = useState(false);
 
   const inputs = useRef<Array<TextInput | null>>([]);
   // Guards against the auto-submit firing twice for the same filled code.
   const submittedRef = useRef(false);
-
-  // ── Countdown for the resend button ───────────────────────────────────────
-  useEffect(() => {
-    if (secondsLeft <= 0) {
-      return;
-    }
-    const id = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
-    return () => clearTimeout(id);
-  }, [secondsLeft]);
 
   const focusBox = (index: number) => {
     inputs.current[Math.max(0, Math.min(index, OTP_LENGTH - 1))]?.focus();
@@ -118,26 +105,13 @@ export function OTPVerifyScreen({ navigation, route }: Props): React.JSX.Element
     }
   };
 
-  const onResend = async () => {
-    setResending(true);
-    setError(null);
-    try {
-      await sendOtp(phone);
-      resetBoxes();
-      setSecondsLeft(RESEND_SECONDS);
-    } catch (err) {
-      setError(getApiErrorMessage(err, 'Could not resend the code. Please try again.'));
-    } finally {
-      setResending(false);
-    }
-  };
-
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.container}>
-        <Text style={styles.title}>Verify your number</Text>
+        <Text style={styles.title}>Enter your code</Text>
         <Text style={styles.subtitle}>
-          Enter the 6-digit code sent to <Text style={styles.phone}>{phone}</Text>
+          Enter the 6-digit code your store owner shared for{' '}
+          <Text style={styles.phone}>{phone}</Text>
         </Text>
 
         <View style={styles.boxes}>
@@ -179,17 +153,10 @@ export function OTPVerifyScreen({ navigation, route }: Props): React.JSX.Element
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         <View style={styles.resendRow}>
-          {secondsLeft > 0 ? (
-            <Text style={styles.timerText}>
-              Resend code in 0:{secondsLeft.toString().padStart(2, '0')}
-            </Text>
-          ) : (
-            <Pressable onPress={onResend} disabled={resending} hitSlop={8}>
-              <Text style={styles.resendText}>
-                {resending ? 'Sending…' : 'Resend OTP'}
-              </Text>
-            </Pressable>
-          )}
+          <Text style={styles.timerText}>
+            Didn&apos;t get a code? Ask your store owner to re-invite you — codes
+            expire after 10 minutes.
+          </Text>
         </View>
       </View>
     </SafeAreaView>
@@ -229,6 +196,5 @@ const styles = StyleSheet.create({
   verifyingText: { fontSize: 14, color: colors.textMuted },
   errorText: { marginTop: spacing.md, fontSize: 13, color: colors.error },
   resendRow: { marginTop: spacing.lg, alignItems: 'flex-start' },
-  timerText: { fontSize: 14, color: colors.textMuted },
-  resendText: { fontSize: 15, fontWeight: '600', color: colors.primary },
+  timerText: { fontSize: 14, color: colors.textMuted, lineHeight: 20 },
 });

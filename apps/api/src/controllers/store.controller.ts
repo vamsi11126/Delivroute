@@ -31,9 +31,10 @@ export async function inviteBoy(req: Request, res: Response, next: NextFunction)
     const otp = await storeService.inviteBoy(storeId, name, phone);
     logger.info('Delivery boy invited', { storeId, phone });
 
-    // Never expose the OTP outside development.
-    const data = process.env.NODE_ENV === 'development' ? { sent: true, otp } : { sent: true };
-    res.status(201).json({ success: true, data, meta: {} });
+    // No SMS provider is wired up yet — the OTP is returned to the store
+    // owner (this route is owner-authenticated), who shares it with the
+    // delivery boy directly. Swap for `{ sent: true }` once SMS lands.
+    res.status(201).json({ success: true, data: { sent: true, otp }, meta: {} });
   } catch (err) {
     logger.error('inviteBoy failed', { error: (err as Error).message });
     next(err);

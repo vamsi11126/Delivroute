@@ -53,8 +53,12 @@ async function countActiveBoys(storeId: string): Promise<number> {
 /**
  * Invite a delivery boy: enforce the store's plan limit, generate a 6-digit
  * OTP, and store it in Redis as `otp:{phone}` → { otp, storeId, name } with a
- * 10-minute TTL. The OTP is logged (SMS delivery is wired up later). Returns
- * the OTP for dev convenience.
+ * 10-minute TTL. No SMS provider is wired up — the OTP is returned to the
+ * store owner, who shares it with the boy directly.
+ *
+ * Re-inviting a phone that already belongs to this store's team is allowed
+ * (regenerates the OTP so a returning boy can log in again); a phone owned by
+ * any other user still conflicts.
  */
 export async function inviteBoy(storeId: string, name: string, phone: string): Promise<string> {
   const store = await prisma.store.findFirst({
@@ -65,26 +69,33 @@ export async function inviteBoy(storeId: string, name: string, phone: string): P
     throw new ApiError(404, 'NOT_FOUND', 'Store not found');
   }
 
-  const limit = PLAN_BOY_LIMITS[store.plan];
-  const activeBoys = await countActiveBoys(storeId);
-  if (activeBoys >= limit) {
-    throw new ApiError(
-      403,
-      'FORBIDDEN',
-      `Plan limit reached: the ${store.plan} plan allows up to ${limit} delivery boys`,
-    );
+  const existing = await prisma.user.findUnique({
+    where: { phone },
+    select: { id: true, storeId: true, role: true, deletedAt: true },
+  });
+  const isOwnBoy =
+    existing?.storeId === storeId && existing.role === Role.delivery_boy && !existing.deletedAt;
+  if (existing && !isOwnBoy) {
+    throw new ApiError(409, 'CONFLICT', 'A user with this phone already exists');
   }
 
-  const existing = await prisma.user.findUnique({ where: { phone }, select: { id: true } });
-  if (existing) {
-    throw new ApiError(409, 'CONFLICT', 'A user with this phone already exists');
+  // Only brand-new boys consume a plan slot; re-invites don't.
+  if (!existing) {
+    const limit = PLAN_BOY_LIMITS[store.plan];
+    const activeBoys = await countActiveBoys(storeId);
+    if (activeBoys >= limit) {
+      throw new ApiError(
+        403,
+        'FORBIDDEN',
+        `Plan limit reached: the ${store.plan} plan allows up to ${limit} delivery boys`,
+      );
+    }
   }
 
   const otp = String(Math.floor(100000 + Math.random() * 900000));
   await redis.set(`otp:${phone}`, JSON.stringify({ otp, storeId, name }), 'EX', OTP_TTL_SECONDS);
 
-  // TODO: send via SMS provider. For now, log it.
-  logger.info(`OTP for ${phone}: ${otp}`);
+  logger.info(`OTP generated for ${phone} (store ${storeId})`);
   return otp;
 }
 
