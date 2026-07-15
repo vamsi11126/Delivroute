@@ -8,8 +8,9 @@ import { ApiError } from '../utils/errors';
  * `req.user = { id, role, storeId }`. Rejects with 401 if missing/invalid.
  */
 export function verifyToken(req: Request, _res: Response, next: NextFunction): void {
-  const header = req.headers.authorization;
-  if (!header || !header.startsWith('Bearer ')) {
+  const rawHeader = req.headers.authorization;
+  const header = Array.isArray(rawHeader) ? rawHeader[0] : rawHeader;
+  if (typeof header !== 'string' || !header.startsWith('Bearer ')) {
     return next(new ApiError(401, 'UNAUTHORIZED', 'Missing or malformed Authorization header'));
   }
 
