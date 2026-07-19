@@ -61,6 +61,9 @@ export function PackageEntryScreen({ navigation, route }: Props): React.JSX.Elem
   // Cleared whenever the address text is edited, so a stale coordinate can
   // never be attached to a hand-modified address.
   const [selectedAddress, setSelectedAddress] = useState<AddressResult | null>(null);
+  // Set when the boy explicitly chose "Use address as typed" — the package is
+  // sent without coordinates and the server geocodes it. Cleared on edit.
+  const [useTypedAddress, setUseTypedAddress] = useState(false);
   const [packageRef, setPackageRef] = useState('');
   const [optimizing, setOptimizing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,10 +76,19 @@ export function PackageEntryScreen({ navigation, route }: Props): React.JSX.Elem
     if (selectedAddress && text !== selectedAddress.displayName) {
       setSelectedAddress(null);
     }
+    setUseTypedAddress(false);
   };
 
   const handleAddressSelect = (result: AddressResult) => {
     setSelectedAddress(result);
+    setUseTypedAddress(false);
+    setError(null);
+  };
+
+  const handleUseTypedAddress = (text: string) => {
+    setAddress(text);
+    setSelectedAddress(null);
+    setUseTypedAddress(true);
     setError(null);
   };
 
@@ -85,7 +97,7 @@ export function PackageEntryScreen({ navigation, route }: Props): React.JSX.Elem
       setError('All fields are required');
       return;
     }
-    if (!selectedAddress) {
+    if (!selectedAddress && !useTypedAddress) {
       setError('Please select an address from the suggestions');
       return;
     }
@@ -93,15 +105,17 @@ export function PackageEntryScreen({ navigation, route }: Props): React.JSX.Elem
       ...prev,
       {
         customerName: customerName.trim(),
-        address: selectedAddress.displayName,
+        address: selectedAddress ? selectedAddress.displayName : address.trim(),
         packageRef: packageRef.trim(),
-        lat: selectedAddress.lat,
-        lng: selectedAddress.lng,
+        // Typed addresses carry no coordinates — the server geocodes them.
+        lat: selectedAddress?.lat,
+        lng: selectedAddress?.lng,
       },
     ]);
     setCustomerName('');
     setAddress('');
     setSelectedAddress(null);
+    setUseTypedAddress(false);
     setPackageRef('');
     setError(null);
   };
@@ -227,6 +241,7 @@ export function PackageEntryScreen({ navigation, route }: Props): React.JSX.Elem
               value={address}
               onChangeText={handleAddressChange}
               onSelect={handleAddressSelect}
+              onUseTyped={handleUseTypedAddress}
               placeholder="123 Main St, City"
             />
 

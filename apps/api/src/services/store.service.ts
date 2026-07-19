@@ -160,11 +160,17 @@ export async function reactivateBoy(boyId: string, storeId: string) {
     }
   }
 
-  return prisma.user.update({
+  const updated = await prisma.user.update({
     where: { id: boy.id },
     data: { isActive: true },
     select: boySafeSelect,
   });
+  logger.info('Delivery boy reactivated', {
+    boyId: updated.id,
+    storeId,
+    isActive: updated.isActive,
+  });
+  return updated;
 }
 
 /** All of today's sessions for the store, with per-status package counts. */

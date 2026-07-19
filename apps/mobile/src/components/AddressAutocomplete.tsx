@@ -20,6 +20,12 @@ interface AddressAutocompleteProps {
   onChangeText: (text: string) => void;
   /** Fired when the user picks a suggestion — result carries lat/lng. */
   onSelect: (result: AddressResult) => void;
+  /**
+   * Fired when the user opts to keep the address exactly as typed (no
+   * coordinates — the server geocodes it instead). Enables the
+   * "Use address as typed" fallback row at the bottom of the dropdown.
+   */
+  onUseTyped?: (text: string) => void;
   placeholder?: string;
 }
 
@@ -36,6 +42,7 @@ export function AddressAutocomplete({
   value,
   onChangeText,
   onSelect,
+  onUseTyped,
   placeholder,
 }: AddressAutocompleteProps): React.JSX.Element {
   const [results, setResults] = useState<AddressResult[]>([]);
@@ -81,6 +88,13 @@ export function AddressAutocomplete({
     skipNextLookup.current = true;
     onChangeText(result.displayName);
     onSelect(result);
+    setResults([]);
+    setOpen(false);
+    inputRef.current?.blur();
+  };
+
+  const handleUseTyped = () => {
+    onUseTyped?.(value.trim());
     setResults([]);
     setOpen(false);
     inputRef.current?.blur();
@@ -151,6 +165,14 @@ export function AddressAutocomplete({
               )}
             />
           )}
+          {!loading && onUseTyped ? (
+            <Pressable style={styles.useTypedRow} onPress={handleUseTyped}>
+              <Text style={styles.useTypedWarning}>⚠</Text>
+              <Text style={styles.useTypedText} numberOfLines={1}>
+                Use address as typed: “{value.trim()}”
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
     </View>
@@ -203,4 +225,16 @@ const styles = StyleSheet.create({
   resultRow: { paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
   resultDivider: { borderTopWidth: 1, borderTopColor: colors.surface },
   resultText: { fontSize: 14, color: colors.text },
+  useTypedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.warningBg,
+  },
+  useTypedWarning: { fontSize: 14, color: colors.warningText },
+  useTypedText: { flex: 1, fontSize: 14, color: colors.warningText },
 });

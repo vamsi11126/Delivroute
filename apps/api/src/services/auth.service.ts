@@ -118,6 +118,9 @@ export async function login(identifier: string, password: string) {
     ? []
     : phoneLookupVariants(identifier).map((phone) => ({ phone }));
 
+  // Deliberately no isActive filter here — a deactivated account must still be
+  // found so we can (a) tell its owner why login fails and (b) let a
+  // reactivated account (isActive flipped back) log in with no stale state.
   const user = await prisma.user.findFirst({
     where: {
       OR: isEmail ? [{ email: identifier }] : [{ email: identifier }, ...phoneVariants],
@@ -125,15 +128,25 @@ export async function login(identifier: string, password: string) {
     },
   });
 
-  // Same generic message whether the user is missing, inactive, or the
-  // password is wrong — avoids leaking which accounts exist.
-  if (!user || !user.isActive) {
+  // Same generic message whether the user is missing or the password is wrong
+  // — avoids leaking which accounts exist.
+  if (!user) {
     throw new ApiError(401, 'UNAUTHORIZED', 'Invalid credentials');
   }
 
   const passwordMatches = await bcrypt.compare(password, user.passwordHash);
   if (!passwordMatches) {
     throw new ApiError(401, 'UNAUTHORIZED', 'Invalid credentials');
+  }
+
+  // Only after the password checks out do we reveal the deactivation — a
+  // correct password proves account ownership, so this leaks nothing.
+  if (!user.isActive) {
+    throw new ApiError(
+      403,
+      'FORBIDDEN',
+      'Your account has been deactivated. Contact your store owner.',
+    );
   }
 
   const tokens = await issueTokens(user);
@@ -143,11 +156,13 @@ export async function login(identifier: string, password: string) {
 
 /** Public phone lookup used by mobile to branch the auth flow. */
 export async function checkPhoneExists(phone: string): Promise<boolean> {
+  // No isActive filter: a deactivated account still "exists" — it must branch
+  // to the password screen, where login returns the proper "account
+  // deactivated" message (and works again immediately after reactivation).
   const user = await prisma.user.findFirst({
     where: {
       OR: phoneLookupVariants(phone).map((candidate) => ({ phone: candidate })),
       deletedAt: null,
-      isActive: true,
     },
     select: { id: true },
   });
@@ -199,12 +214,13 @@ export async function generateOtp(phone: string, storeId?: string): Promise<stri
     where: {
       OR: phoneLookupVariants(phone).map((candidate) => ({ phone: candidate })),
       deletedAt: null,
-      isActive: true,
     },
     select: { id: true, storeId: true },
   });
 
   if (existing) {
+    // Includes deactivated accounts — issuing an OTP for one would let its
+    // owner back in via verifyOtp, bypassing the deactivation.
     throw new ApiError(409, 'CONFLICT', 'Phone number is already registered');
   }
 
