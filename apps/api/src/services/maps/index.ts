@@ -1,5 +1,6 @@
 import { logger } from '../../utils/logger';
 import { GoogleMapsProvider } from './google.provider';
+import { OlaMapsProvider } from './ola.provider';
 import { OSRMProvider } from './osrm.provider';
 import type { MapProvider } from './types';
 
@@ -9,7 +10,7 @@ let provider: MapProvider | null = null;
 
 /**
  * Returns the configured MapProvider singleton, chosen by the MAP_PROVIDER env
- * var ("google" or "osm"). Created lazily on first use.
+ * var ("google", "ola", or "osm"). Created lazily on first use.
  */
 export function getMapProvider(): MapProvider {
   if (provider) return provider;
@@ -21,6 +22,12 @@ export function getMapProvider(): MapProvider {
       throw new Error('GOOGLE_MAPS_API_KEY is required when MAP_PROVIDER=google');
     }
     provider = new GoogleMapsProvider(key);
+  } else if (choice === 'ola') {
+    const key = process.env.OLA_MAPS_API_KEY;
+    if (!key) {
+      throw new Error('OLA_MAPS_API_KEY is required when MAP_PROVIDER=ola');
+    }
+    provider = new OlaMapsProvider(key);
   } else {
     provider = new OSRMProvider();
   }

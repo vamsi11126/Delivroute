@@ -12,3 +12,8 @@ services:
         value: 4000
       - key: SOCKET_CORS_ORIGINS
         value: https://delivroute-web-six.vercel.app,http://localhost:3000
+      - key: MAP_PROVIDER
+        value: ola
+      # Secret — set the value in the Render dashboard, not here.
+      - key: OLA_MAPS_API_KEY
+        sync: false

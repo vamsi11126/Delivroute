@@ -6,6 +6,7 @@ interface ExtraConfig {
   apiUrl?: string;
   mapProvider?: MapProvider;
   googleMapsApiKey?: string;
+  olaMapsApiKey?: string;
 }
 
 /**
@@ -29,4 +30,5 @@ export const env = {
   SOCKET_URL,
   MAP_PROVIDER: (extra.mapProvider ?? 'osm') as MapProvider,
   GOOGLE_MAPS_API_KEY: extra.googleMapsApiKey ?? '',
+  OLA_MAPS_API_KEY: extra.olaMapsApiKey ?? '',
 } as const;

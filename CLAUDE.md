@@ -286,6 +286,7 @@ interface MapProvider {
 }
 // GoogleMapsProvider — uses Google APIs (MAP_PROVIDER=google)
 // OSRMProvider      — uses OpenStreetMap + OSRM (MAP_PROVIDER=osm)
+// OlaMapsProvider   — uses Ola Maps APIs, best Indian coverage (MAP_PROVIDER=ola)
 ```
 
 Switch provider via `MAP_PROVIDER` env var — zero code changes required.
@@ -320,8 +321,9 @@ DIRECT_URL=postgresql://postgres:[password]@db.[project].supabase.co:5432/postgr
 REDIS_URL=rediss://[upstash-url]:6379
 JWT_SECRET=                  # min 64 chars random string
 JWT_REFRESH_SECRET=          # min 64 chars, different from JWT_SECRET
-MAP_PROVIDER=                # "google" or "osm"
+MAP_PROVIDER=                # "google", "osm", or "ola"
 GOOGLE_MAPS_API_KEY=         # required when MAP_PROVIDER=google
+OLA_MAPS_API_KEY=            # required when MAP_PROVIDER=ola
 RAZORPAY_KEY_ID=
 RAZORPAY_KEY_SECRET=
 FCM_SERVER_KEY=

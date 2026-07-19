@@ -5,6 +5,7 @@ import { logger } from './utils/logger';
 import { connectPrisma, disconnectPrisma } from './utils/prisma';
 import { connectRedis, disconnectRedis } from './utils/redis';
 import { initLocationSocket } from './socket/location.socket';
+import { getMapProvider } from './services/maps';
 
 const PORT = Number(process.env.PORT) || 4000;
 
@@ -13,6 +14,10 @@ async function bootstrap(): Promise<void> {
     // Connect external services before accepting traffic.
     await connectPrisma();
     await connectRedis();
+
+    // Fail fast on a misconfigured map provider (e.g. MAP_PROVIDER=ola with no
+    // OLA_MAPS_API_KEY) instead of erroring on the first geocode request.
+    getMapProvider();
 
     const app = createApp();
     const server = createServer(app);
