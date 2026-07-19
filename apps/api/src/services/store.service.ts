@@ -56,9 +56,9 @@ async function countActiveBoys(storeId: string): Promise<number> {
  * 10-minute TTL. No SMS provider is wired up — the OTP is returned to the
  * store owner, who shares it with the boy directly.
  *
- * Re-inviting a phone that already belongs to this store's team is allowed
- * (regenerates the OTP so a returning boy can log in again); a phone owned by
- * any other user still conflicts.
+ * OTPs are only for genuinely new phone numbers: a phone that already has an
+ * account conflicts (409) — an existing boy logs in with their password, and a
+ * phone owned by another store's user is never re-invitable.
  */
 export async function inviteBoy(storeId: string, name: string, phone: string): Promise<string> {
   const store = await prisma.store.findFirst({
@@ -73,29 +73,37 @@ export async function inviteBoy(storeId: string, name: string, phone: string): P
     where: { phone },
     select: { id: true, storeId: true, role: true, deletedAt: true },
   });
-  const isOwnBoy =
-    existing?.storeId === storeId && existing.role === Role.delivery_boy && !existing.deletedAt;
-  if (existing && !isOwnBoy) {
+  if (existing) {
+    if (existing.storeId === storeId && existing.role === Role.delivery_boy && !existing.deletedAt) {
+      throw new ApiError(
+        409,
+        'CONFLICT',
+        'This phone number is already registered. Ask the delivery boy to login with their password.',
+      );
+    }
+    if (existing.storeId !== storeId) {
+      throw new ApiError(409, 'CONFLICT', 'This phone is registered with another store.');
+    }
+    // Same store but not an active boy (owner's own phone, or a soft-deleted
+    // account still holding the unique phone) — verify-otp could not create a
+    // fresh user for it either way.
     throw new ApiError(409, 'CONFLICT', 'A user with this phone already exists');
   }
 
-  // Only brand-new boys consume a plan slot; re-invites don't.
-  if (!existing) {
-    const limit = PLAN_BOY_LIMITS[store.plan];
-    const activeBoys = await countActiveBoys(storeId);
-    if (activeBoys >= limit) {
-      throw new ApiError(
-        403,
-        'FORBIDDEN',
-        `Plan limit reached: the ${store.plan} plan allows up to ${limit} delivery boys`,
-      );
-    }
+  const limit = PLAN_BOY_LIMITS[store.plan];
+  const activeBoys = await countActiveBoys(storeId);
+  if (activeBoys >= limit) {
+    throw new ApiError(
+      403,
+      'FORBIDDEN',
+      `Plan limit reached: the ${store.plan} plan allows up to ${limit} delivery boys`,
+    );
   }
 
   const otp = String(Math.floor(100000 + Math.random() * 900000));
   await redis.set(`otp:${phone}`, JSON.stringify({ otp, storeId, name }), 'EX', OTP_TTL_SECONDS);
 
-  logger.info(`OTP generated for ${phone} (store ${storeId})`);
+  logger.info('Delivery boy OTP', { phone, otp, storeId });
   return otp;
 }
 
@@ -115,6 +123,46 @@ export async function deactivateBoy(boyId: string, storeId: string) {
   return prisma.user.update({
     where: { id: boy.id },
     data: { isActive: false },
+    select: boySafeSelect,
+  });
+}
+
+/**
+ * Reactivate a delivery boy (set isActive=true) after verifying they belong
+ * to the calling store. Consumes a slot, so the plan limit is re-checked —
+ * otherwise deactivate/reactivate would bypass it.
+ */
+export async function reactivateBoy(boyId: string, storeId: string) {
+  const boy = await prisma.user.findFirst({
+    where: { id: boyId, storeId, role: Role.delivery_boy, deletedAt: null },
+    select: { id: true, isActive: true },
+  });
+  if (!boy) {
+    throw new ApiError(404, 'NOT_FOUND', 'Delivery boy not found');
+  }
+
+  if (!boy.isActive) {
+    const store = await prisma.store.findFirst({
+      where: { id: storeId, deletedAt: null },
+      select: { plan: true },
+    });
+    if (!store) {
+      throw new ApiError(404, 'NOT_FOUND', 'Store not found');
+    }
+    const limit = PLAN_BOY_LIMITS[store.plan];
+    const activeBoys = await countActiveBoys(storeId);
+    if (activeBoys >= limit) {
+      throw new ApiError(
+        403,
+        'FORBIDDEN',
+        `Plan limit reached: the ${store.plan} plan allows up to ${limit} delivery boys`,
+      );
+    }
+  }
+
+  return prisma.user.update({
+    where: { id: boy.id },
+    data: { isActive: true },
     select: boySafeSelect,
   });
 }

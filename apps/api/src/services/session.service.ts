@@ -85,9 +85,11 @@ export interface AddPackagesResult {
 }
 
 /**
- * Geocode each address via the configured MapProvider and create Package
- * records. New packages are appended after any existing ones (orderIndex
- * continues from the current max); call optimizeSession afterwards to order them.
+ * Create Package records for a batch of inputs. Packages that arrive with
+ * lat/lng (resolved client-side via address autocomplete) are used as-is; the
+ * rest are geocoded via the configured MapProvider. New packages are appended
+ * after any existing ones (orderIndex continues from the current max); call
+ * optimizeSession afterwards to order them.
  *
  * A single un-geocodable address must not sink the whole batch: every address
  * that resolves is added, and the ones that don't are returned in `failed` so
@@ -106,13 +108,19 @@ export async function addPackages(
 ): Promise<AddPackagesResult> {
   await findScopedSession(sessionId, storeId);
 
-  const provider = getMapProvider();
   const geocoded: { input: PackageInput; coords: LatLng }[] = [];
   const failed: FailedAddress[] = [];
+  // Only reach for the provider if at least one package lacks coordinates.
+  const needsGeocoding = packages.some((p) => p.lat === undefined || p.lng === undefined);
+  const provider = needsGeocoding ? getMapProvider() : null;
 
   for (const pkg of packages) {
+    if (pkg.lat !== undefined && pkg.lng !== undefined) {
+      geocoded.push({ input: pkg, coords: { lat: pkg.lat, lng: pkg.lng } });
+      continue;
+    }
     try {
-      const coords = await provider.geocode(pkg.address);
+      const coords = await provider!.geocode(pkg.address);
       geocoded.push({ input: pkg, coords });
     } catch (err) {
       if (err instanceof ApiError && err.code === 'MAP_API_UNAVAILABLE') {

@@ -28,6 +28,9 @@ export interface PackageInput {
   packageRef: string;
   customerName: string;
   address: string;
+  /** Present when the address came from autocomplete — server skips geocoding. */
+  lat?: number;
+  lng?: number;
 }
 
 export async function createSession(): Promise<DeliverySession> {
@@ -81,22 +84,6 @@ export async function startSession(sessionId: string): Promise<DeliverySession> 
 export async function endSession(sessionId: string): Promise<DeliverySession> {
   const { data } = await apiClient.patch<Envelope<DeliverySession>>(`/sessions/${sessionId}/end`);
   return data.data;
-}
-
-/**
- * Address suggestions for the entry form. There is no delivery-boy-facing
- * autocomplete endpoint yet, so any failure (404/403/network) resolves to an
- * empty list and the caller falls back to plain free-text entry.
- */
-export async function autocompleteAddress(query: string): Promise<string[]> {
-  try {
-    const { data } = await apiClient.get<Envelope<string[]>>('/store/autocomplete', {
-      params: { q: query },
-    });
-    return data.data ?? [];
-  } catch {
-    return [];
-  }
 }
 
 export async function markDelivered(packageId: string): Promise<Package> {

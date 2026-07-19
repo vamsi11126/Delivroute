@@ -14,6 +14,7 @@ router.use(verifyToken, requireRole(Role.store_owner));
 router.get('/team', storeController.getTeam);
 router.post('/team', validate(inviteBoySchema), storeController.inviteBoy);
 router.delete('/team/:id', storeController.deactivateBoy);
+router.patch('/team/:id/activate', storeController.reactivateBoy);
 
 // Sessions & packages
 router.get('/sessions', storeController.getTodaySessions);

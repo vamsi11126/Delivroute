@@ -94,6 +94,21 @@ export default function TeamPage() {
     },
   });
 
+  const activateMutation = useMutation({
+    mutationFn: (id: string) => api.patch(`/store/team/${id}/activate`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['store', 'team'] });
+      toast({ title: 'Delivery boy activated' });
+    },
+    onError: (err) => {
+      toast({
+        variant: 'destructive',
+        title: 'Could not activate',
+        description: apiErrorMessage(err),
+      });
+    },
+  });
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -171,13 +186,27 @@ export default function TeamPage() {
                   >
                     {member.isActive ? 'Active' : 'Inactive'}
                   </Badge>
-                  {member.isActive && (
+                  {member.isActive ? (
                     <Button
                       variant="outline"
                       size="sm"
+                      className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
                       onClick={() => setToDeactivate(member)}
                     >
                       Deactivate
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-green-200 text-green-700 hover:bg-green-50 hover:text-green-800"
+                      onClick={() => activateMutation.mutate(member.id)}
+                      disabled={activateMutation.isPending}
+                    >
+                      {activateMutation.isPending &&
+                      activateMutation.variables === member.id
+                        ? 'Activating…'
+                        : 'Activate'}
                     </Button>
                   )}
                 </li>
@@ -295,11 +324,10 @@ function AddBoyDialog({
         {issuedOtp ? (
           <>
             <DialogHeader>
-              <DialogTitle>Share this code with {name.trim() || 'the delivery boy'}</DialogTitle>
+              <DialogTitle>Share this with {name.trim() || 'your delivery boy'}</DialogTitle>
               <DialogDescription>
-                They enter their phone number and this 6-digit code in the
-                DelivRoute app to join your team. The code expires in 10
-                minutes — you can re-invite to get a fresh one.
+                Send these steps via WhatsApp or tell them verbally. The code
+                expires in 10 minutes — re-invite to get a fresh one.
               </DialogDescription>
             </DialogHeader>
             <div className="flex items-center justify-center rounded-md border bg-muted py-6">
@@ -307,16 +335,31 @@ function AddBoyDialog({
                 {issuedOtp}
               </span>
             </div>
+            <ol className="list-decimal space-y-1 rounded-md border bg-muted/50 p-4 pl-8 text-sm">
+              <li>Download the DelivRoute app</li>
+              <li>
+                Enter phone:{' '}
+                <span className="font-mono font-semibold">+91{phone.replace(/\D/g, '')}</span>
+              </li>
+              <li>
+                Enter OTP: <span className="font-mono font-semibold">{issuedOtp}</span>{' '}
+                (valid for 10 minutes)
+              </li>
+              <li>Complete profile setup</li>
+            </ol>
             <DialogFooter>
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => {
-                  void navigator.clipboard.writeText(issuedOtp);
-                  toast({ title: 'Copied', description: 'OTP copied to clipboard.' });
+                  const digits = phone.replace(/\D/g, '');
+                  void navigator.clipboard.writeText(
+                    `DelivRoute setup:\n1. Download the DelivRoute app\n2. Enter phone: +91${digits}\n3. Enter OTP: ${issuedOtp} (valid for 10 minutes)\n4. Complete profile setup`,
+                  );
+                  toast({ title: 'Copied', description: 'Instructions copied to clipboard.' });
                 }}
               >
-                Copy code
+                Copy instructions
               </Button>
               <Button
                 type="button"

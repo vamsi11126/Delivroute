@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -13,14 +13,15 @@ import { Swipeable } from 'react-native-gesture-handler';
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { TextField } from '../../components/TextField';
+import { AddressAutocomplete } from '../../components/AddressAutocomplete';
 import { PrimaryButton } from '../../components/PrimaryButton';
 import {
   addPackages,
-  autocompleteAddress,
   deletePackage,
   optimizeRoute,
   type PackageInput,
 } from '../../api/session';
+import type { AddressResult } from '../../services/autocomplete.service';
 import { getApiErrorMessage } from '../../api/errors';
 import * as gpsService from '../../services/gps.service';
 import { useSessionStore } from '../../store/sessionStore';
@@ -29,8 +30,6 @@ import { colors, radius, spacing } from '../../theme';
 import type { HomeStackParamList } from '../../navigation/AppTabs';
 
 type Props = StackScreenProps<HomeStackParamList, 'PackageEntry'>;
-
-const AUTOCOMPLETE_DEBOUNCE_MS = 300;
 
 /**
  * A row in the entry list. `id` is set once the row has been persisted to the
@@ -58,44 +57,27 @@ export function PackageEntryScreen({ navigation, route }: Props): React.JSX.Elem
   const [packages, setPackages] = useState<DraftPackage[]>([]);
   const [customerName, setCustomerName] = useState('');
   const [address, setAddress] = useState('');
+  // The AddressResult picked from the autocomplete dropdown, carrying lat/lng.
+  // Cleared whenever the address text is edited, so a stale coordinate can
+  // never be attached to a hand-modified address.
+  const [selectedAddress, setSelectedAddress] = useState<AddressResult | null>(null);
   const [packageRef, setPackageRef] = useState('');
   const [optimizing, setOptimizing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  // Set when the address was just filled from a suggestion, so the debounced
-  // effect doesn't immediately re-query for the value we just selected.
-  const skipNextLookup = useRef(false);
-
-  // Debounced address autocomplete. Silently no-ops when the backend has no
-  // delivery-boy autocomplete endpoint (autocompleteAddress returns []).
-  useEffect(() => {
-    if (skipNextLookup.current) {
-      skipNextLookup.current = false;
-      return;
+  const handleAddressChange = (text: string) => {
+    setAddress(text);
+    setError(null);
+    // Any manual edit invalidates the previous selection — the coordinates no
+    // longer match the text (selecting a suggestion re-sets this right after).
+    if (selectedAddress && text !== selectedAddress.displayName) {
+      setSelectedAddress(null);
     }
-    const query = address.trim();
-    if (query.length < 3) {
-      setSuggestions([]);
-      return;
-    }
+  };
 
-    let cancelled = false;
-    const timer = setTimeout(async () => {
-      const results = await autocompleteAddress(query);
-      if (!cancelled) setSuggestions(results);
-    }, AUTOCOMPLETE_DEBOUNCE_MS);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [address]);
-
-  const handlePickSuggestion = (value: string) => {
-    skipNextLookup.current = true;
-    setAddress(value);
-    setSuggestions([]);
+  const handleAddressSelect = (result: AddressResult) => {
+    setSelectedAddress(result);
+    setError(null);
   };
 
   const handleAdd = () => {
@@ -103,14 +85,24 @@ export function PackageEntryScreen({ navigation, route }: Props): React.JSX.Elem
       setError('All fields are required');
       return;
     }
+    if (!selectedAddress) {
+      setError('Please select an address from the suggestions');
+      return;
+    }
     setPackages((prev) => [
       ...prev,
-      { customerName: customerName.trim(), address: address.trim(), packageRef: packageRef.trim() },
+      {
+        customerName: customerName.trim(),
+        address: selectedAddress.displayName,
+        packageRef: packageRef.trim(),
+        lat: selectedAddress.lat,
+        lng: selectedAddress.lng,
+      },
     ]);
     setCustomerName('');
     setAddress('');
+    setSelectedAddress(null);
     setPackageRef('');
-    setSuggestions([]);
     setError(null);
   };
 
@@ -142,15 +134,17 @@ export function PackageEntryScreen({ navigation, route }: Props): React.JSX.Elem
       // re-sending them would create duplicates.
       const unsaved = packages.filter((p) => !p.id);
       if (unsaved.length > 0) {
-        // The server geocodes each address and skips any it can't locate, adding
-        // the rest. Tag the rows that landed with their DB id so they aren't
-        // re-sent and a later removal deletes them server-side too.
+        // Coordinates come from the autocomplete selection, so the server can
+        // skip geocoding entirely. Tag the rows that landed with their DB id so
+        // they aren't re-sent and a later removal deletes them server-side too.
         const { created, failed } = await addPackages(
           sessionId,
           unsaved.map((p) => ({
             packageRef: p.packageRef,
             customerName: p.customerName,
             address: p.address,
+            lat: p.lat,
+            lng: p.lng,
           })),
         );
 
@@ -228,33 +222,13 @@ export function PackageEntryScreen({ navigation, route }: Props): React.JSX.Elem
               autoCapitalize="words"
             />
 
-            <View>
-              <TextField
-                label="Address"
-                value={address}
-                onChangeText={(t) => {
-                  setAddress(t);
-                  setError(null);
-                }}
-                placeholder="123 Main St, City"
-                multiline
-              />
-              {suggestions.length > 0 ? (
-                <View style={styles.suggestions}>
-                  {suggestions.slice(0, 5).map((s, i) => (
-                    <Pressable
-                      key={`${s}-${i}`}
-                      style={[styles.suggestionRow, i > 0 && styles.suggestionDivider]}
-                      onPress={() => handlePickSuggestion(s)}
-                    >
-                      <Text style={styles.suggestionText} numberOfLines={1}>
-                        {s}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              ) : null}
-            </View>
+            <AddressAutocomplete
+              label="Address"
+              value={address}
+              onChangeText={handleAddressChange}
+              onSelect={handleAddressSelect}
+              placeholder="123 Main St, City"
+            />
 
             <TextField
               label="Package Reference"
@@ -316,17 +290,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   container: { flex: 1, padding: spacing.md },
   form: { gap: spacing.md },
-  suggestions: {
-    marginTop: spacing.xs,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    backgroundColor: colors.white,
-    overflow: 'hidden',
-  },
-  suggestionRow: { paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
-  suggestionDivider: { borderTopWidth: 1, borderTopColor: colors.surface },
-  suggestionText: { fontSize: 14, color: colors.text },
   listWrap: { flex: 1, marginTop: spacing.lg },
   listTitle: { fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: spacing.sm },
   listContent: { gap: spacing.sm, paddingBottom: spacing.sm },

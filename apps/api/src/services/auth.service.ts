@@ -12,6 +12,26 @@ const BCRYPT_ROUNDS = 12;
 const REFRESH_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
 const OTP_TTL_SECONDS = 10 * 60; // 10 minutes
 
+function phoneLookupVariants(phone: string): string[] {
+  const trimmed = phone.trim();
+  const digits = trimmed.replace(/\D/g, '');
+  const variants = new Set<string>([trimmed]);
+
+  if (digits) {
+    variants.add(digits);
+
+    if (digits.length === 10) {
+      variants.add(`+91${digits}`);
+    }
+
+    if (digits.length === 12 && digits.startsWith('91')) {
+      variants.add(`+${digits}`);
+    }
+  }
+
+  return [...variants];
+}
+
 /** Fields safe to return in any API response (never includes passwordHash). */
 const userSafeSelect = {
   id: true,
@@ -93,9 +113,14 @@ export async function registerStore(data: RegisterStoreInput) {
 
 /** Authenticate by email or phone, returning the safe user + tokens. */
 export async function login(identifier: string, password: string) {
+  const isEmail = identifier.includes('@');
+  const phoneVariants = isEmail
+    ? []
+    : phoneLookupVariants(identifier).map((phone) => ({ phone }));
+
   const user = await prisma.user.findFirst({
     where: {
-      OR: [{ email: identifier }, { phone: identifier }],
+      OR: isEmail ? [{ email: identifier }] : [{ email: identifier }, ...phoneVariants],
       deletedAt: null,
     },
   });
@@ -119,7 +144,11 @@ export async function login(identifier: string, password: string) {
 /** Public phone lookup used by mobile to branch the auth flow. */
 export async function checkPhoneExists(phone: string): Promise<boolean> {
   const user = await prisma.user.findFirst({
-    where: { phone, deletedAt: null, isActive: true },
+    where: {
+      OR: phoneLookupVariants(phone).map((candidate) => ({ phone: candidate })),
+      deletedAt: null,
+      isActive: true,
+    },
     select: { id: true },
   });
 
@@ -167,7 +196,11 @@ export async function logout(token: string): Promise<void> {
  */
 export async function generateOtp(phone: string, storeId?: string): Promise<string> {
   const existing = await prisma.user.findFirst({
-    where: { phone, deletedAt: null, isActive: true },
+    where: {
+      OR: phoneLookupVariants(phone).map((candidate) => ({ phone: candidate })),
+      deletedAt: null,
+      isActive: true,
+    },
     select: { id: true, storeId: true },
   });
 
@@ -227,7 +260,10 @@ export async function verifyOtp(phone: string, otp: string) {
   await redis.del(`otp:${phone}`);
 
   const existing = await prisma.user.findFirst({
-    where: { phone, deletedAt: null },
+    where: {
+      OR: phoneLookupVariants(phone).map((candidate) => ({ phone: candidate })),
+      deletedAt: null,
+    },
     select: userSafeSelect,
   });
 

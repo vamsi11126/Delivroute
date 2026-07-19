@@ -53,6 +53,18 @@ export async function deactivateBoy(req: Request, res: Response, next: NextFunct
   }
 }
 
+export async function reactivateBoy(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const storeId = requireStoreId(req);
+    const boy = await storeService.reactivateBoy(String(req.params.id), storeId);
+    logger.info('Delivery boy reactivated', { storeId, boyId: boy.id });
+    res.json({ success: true, data: boy, meta: {} });
+  } catch (err) {
+    logger.error('reactivateBoy failed', { error: (err as Error).message });
+    next(err);
+  }
+}
+
 export async function getTodaySessions(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const storeId = requireStoreId(req);

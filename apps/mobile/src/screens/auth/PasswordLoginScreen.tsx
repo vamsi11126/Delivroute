@@ -95,6 +95,7 @@ export function PasswordLoginScreen({ navigation, route }: Props): React.JSX.Ele
           </View>
 
           <View style={styles.footer}>
+            <Text style={styles.forgotHint}>Forgot password? Contact your store owner</Text>
             <Pressable onPress={() => navigation.popToTop()} hitSlop={8}>
               <Text style={styles.wrongNumber}>Wrong number?</Text>
             </Pressable>
@@ -122,5 +123,6 @@ const styles = StyleSheet.create({
   form: { marginTop: spacing.xl },
   toggle: { fontSize: 14, fontWeight: '600', color: colors.primary },
   footer: { gap: spacing.md },
+  forgotHint: { fontSize: 14, color: colors.textMuted },
   wrongNumber: { fontSize: 14, fontWeight: '600', color: colors.primary },
 });

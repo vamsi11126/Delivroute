@@ -3,12 +3,22 @@ import { z } from 'zod';
 /** Create a delivery session for today. No body fields — boy/store come from JWT. */
 export const createSessionSchema = z.object({}).strip();
 
-/** A single package to add to a session (geocoded server-side). */
-const packageInputSchema = z.object({
-  packageRef: z.string().trim().min(1, 'packageRef is required'),
-  customerName: z.string().trim().min(1, 'customerName is required'),
-  address: z.string().trim().min(1, 'address is required'),
-});
+/**
+ * A single package to add to a session. When the mobile app resolves the
+ * address via autocomplete it sends lat/lng directly; otherwise the address is
+ * geocoded server-side. Both coordinates must be provided together.
+ */
+const packageInputSchema = z
+  .object({
+    packageRef: z.string().trim().min(1, 'packageRef is required'),
+    customerName: z.string().trim().min(1, 'customerName is required'),
+    address: z.string().trim().min(1, 'address is required'),
+    lat: z.number().min(-90).max(90).optional(),
+    lng: z.number().min(-180).max(180).optional(),
+  })
+  .refine((p) => (p.lat === undefined) === (p.lng === undefined), {
+    message: 'lat and lng must be provided together',
+  });
 
 /** Bulk-add packages to a session. */
 export const addPackagesSchema = z.object({
